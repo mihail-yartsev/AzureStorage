@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>Lykke.AzureStorage</id>
+    <version>$version$</version>    
+    <authors>Lykke</authors>
+    <owners>Lykke</owners>
+    <licenseUrl>https://github.com/LykkeCity/AzureStorage/blob/master/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/LykkeCity/AzureStorage</projectUrl>   
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>AzureStorage Lykke library for Lykke's applications</description>    
+    <copyright>Copyright 2016</copyright>
+    <tags>Lykke AzureStorage, Azure</tags>	
+  </metadata>
+</package>
