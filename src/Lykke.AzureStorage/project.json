@@ -2,7 +2,7 @@
   "version": "1.0.0",
 
   "dependencies": {
-    "Lykke.Common": "1.1.0",
+    "Lykke.Common": "1.1.1",
     "WindowsAzure.Storage": "7.2.1"
   },
 
@@ -11,7 +11,7 @@
       "dependencies": {
         "Microsoft.NETCore.App": {
           "type": "platform",
-          "version": "1.0.1"
+          "version": "1.1.0"
         }
       },
       "imports": [        
