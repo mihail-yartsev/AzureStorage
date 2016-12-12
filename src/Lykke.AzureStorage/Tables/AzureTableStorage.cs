@@ -75,6 +75,7 @@ namespace AzureStorage.Tables
             {
                 _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertAsync batch",
                     AzureStorageUtils.PrintItems(items), ex);
+                throw;
             }
             return Task.CompletedTask;
         }
