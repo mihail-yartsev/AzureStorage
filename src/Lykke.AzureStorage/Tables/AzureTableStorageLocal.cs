@@ -49,6 +49,12 @@ namespace AzureStorage.Tables
             return PostHttpReqest(item.PartitionKey, item.RowKey, item);
         }
 
+        public async Task InsertOrMergeBatchAsync(IEnumerable<T> items)
+        {
+            foreach (var entity in items)
+                await InsertOrMergeAsync(entity);
+        }
+
         public async Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> item)
         {
             var itm = await GetDataAsync(partitionKey, rowKey);

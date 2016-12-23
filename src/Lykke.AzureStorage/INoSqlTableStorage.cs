@@ -27,6 +27,7 @@ namespace AzureStorage
         Task InsertAsync(IEnumerable<T> items);
 
         Task InsertOrMergeAsync(T item);
+        Task InsertOrMergeBatchAsync(IEnumerable<T> items);
 
         Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> item);
 

@@ -214,7 +214,7 @@ namespace AzureStorage
                     var idEntity = SetupEntity.Create(partitionKey, rowKey,
                         fromId.ToString(CultureInfo.InvariantCulture));
 
-                    await tableStorage.InsertAsync(idEntity);
+                    await tableStorage.InsertAsync(idEntity, Conflict);
                 }
 
                 catch (StorageException e)
@@ -553,7 +553,7 @@ namespace AzureStorage
 
                 try
                 {
-                    await table.InsertAsync(entity);
+                    await table.InsertAsync(entity, Conflict);
                     return entity;
                 }
                 catch (AggregateException e)
@@ -597,7 +597,7 @@ namespace AzureStorage
 
                 try
                 {
-                    await table.InsertAsync(entity);
+                    await table.InsertAsync(entity, Conflict);
                     return entity;
                 }
                 catch (AggregateException e)

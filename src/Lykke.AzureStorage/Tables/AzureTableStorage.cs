@@ -95,6 +95,28 @@ namespace AzureStorage.Tables
             }
         }
 
+        public Task InsertOrMergeBatchAsync(IEnumerable<T> items)
+        {
+            items = items.ToArray();
+            try
+            {
+                if (items.Any())
+                {
+                    var insertBatchOperation = new TableBatchOperation();
+                    foreach (var item in items)
+                    {
+                        insertBatchOperation.InsertOrMerge(item);
+                    }
+                    return GetTable().ExecuteBatchAsync(insertBatchOperation);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrMergeBatchAsync", AzureStorageUtils.PrintItems(items), ex);
+            }
+            return Task.CompletedTask;
+        }
+
         public async Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> replaceAction)
         {
             object itm = "Not read";

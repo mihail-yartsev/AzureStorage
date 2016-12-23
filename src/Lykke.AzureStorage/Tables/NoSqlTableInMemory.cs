@@ -220,6 +220,12 @@ namespace AzureStorage.Tables
             return Task.Run(() => InsertOrMerge(item));
         }
 
+        public async Task InsertOrMergeBatchAsync(IEnumerable<T> items)
+        {
+            foreach (var entity in items)
+                await InsertOrMergeAsync(entity);
+        }
+
         public T Replace(string partitionKey, string rowKey, Func<T,T> replaceAction)
         {
             _lockSlim.EnterWriteLock();
