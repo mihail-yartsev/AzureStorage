@@ -74,7 +74,12 @@ namespace AzureStorage.Queue
 		    throw new System.NotImplementedException();
 	    }
 
-	    public void PutMessage(object itm)
+        public Task<int?> Count()
+        {
+            return Task.FromResult((int?)_queue.Count);
+        }
+
+        public void PutMessage(object itm)
         {
             lock (_queue)
                 _queue.Enqueue(itm);

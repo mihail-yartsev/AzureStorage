@@ -41,5 +41,7 @@ namespace AzureStorage.Queue
 	    Task<CloudQueueMessage> GetRawMessageAsync(int visibilityTimeoutSeconds = 30);
 	    Task FinishRawMessageAsync(CloudQueueMessage msg);
 		Task ReleaseRawMessageAsync(CloudQueueMessage msg);
+
+        Task<int?> Count();
     }
 }

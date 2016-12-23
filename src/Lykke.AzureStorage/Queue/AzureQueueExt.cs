@@ -129,5 +129,11 @@ namespace AzureStorage.Queue
                 return null;
             }
         }
+
+        public async Task<int?> Count()
+        {
+            await _queue.FetchAttributesAsync();
+            return _queue.ApproximateMessageCount;
+        }
     }
 }
