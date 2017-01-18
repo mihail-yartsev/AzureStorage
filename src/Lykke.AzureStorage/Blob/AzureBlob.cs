@@ -48,13 +48,13 @@ namespace AzureStorage.Blob
 			return containerRef.GetBlockBlobReference(key);
 		}
 
-		public Task SaveBlobAsync(string container, string key, byte[] blob)
+		public async Task SaveBlobAsync(string container, string key, byte[] blob)
         {
             var containerRef = _blobClient.GetContainerReference(container);
-            containerRef.CreateIfNotExistsAsync();
+            await containerRef.CreateIfNotExistsAsync();
 
             var blockBlob = containerRef.GetBlockBlobReference(key);
-            return blockBlob.UploadFromByteArrayAsync(blob, 0, blob.Length);
+            await blockBlob.UploadFromByteArrayAsync(blob, 0, blob.Length);
         }
 
         public Task<bool> HasBlobAsync(string container, string key)
