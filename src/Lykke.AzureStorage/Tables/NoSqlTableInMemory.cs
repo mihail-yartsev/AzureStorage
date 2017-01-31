@@ -612,7 +612,7 @@ namespace AzureStorage.Tables
             return Task.Run(() => Where(rangeQuery, filter));
         }
 
-        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult)
+        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult, Func<bool> stopCondition = null)
         {
             return Task.Run(() =>
             {

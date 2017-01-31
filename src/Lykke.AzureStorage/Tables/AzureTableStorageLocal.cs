@@ -318,7 +318,7 @@ namespace AzureStorage.Tables
             return result.ToArray();
         }
 
-        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult)
+        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult, Func<bool> stopCondition = null)
         {
             return Task.Run(() =>
             {

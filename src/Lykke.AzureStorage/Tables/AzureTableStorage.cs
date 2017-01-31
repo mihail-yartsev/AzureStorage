@@ -537,11 +537,17 @@ namespace AzureStorage.Tables
             return result;
         }
 
-        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> result)
+        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> result, Func<bool> stopCondition = null)
         {
             return ExecuteQueryAsync("ExecuteAsync", rangeQuery, null, itms =>
             {
                 result(itms);
+
+                if (stopCondition != null)
+                {
+                    return stopCondition();
+                }
+
                 return true;
             });
         }

@@ -119,8 +119,9 @@ namespace AzureStorage
         /// </summary>
         /// <param name="rangeQuery">Запрос</param>
         /// <param name="yieldResult">обратные вызовы кусками с информацией, полученной по сети</param>
+        /// <param name="stopCondition">Stop condition func</param>
         /// <returns>Task</returns>
-        Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult);	
+        Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult, Func<bool> stopCondition = null);	
 		/// <summary>
 		///     Выполнить набор операций
 		/// </summary>

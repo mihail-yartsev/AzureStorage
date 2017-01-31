@@ -175,8 +175,8 @@ namespace AzureStorage.Tables
         public Task<IEnumerable<T>> WhereAsync(TableQuery<T> rangeQuery, Func<T, bool> filter = null)
             => _table.WhereAsync(rangeQuery, filter);
 
-        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult)
-            => _table.ExecuteAsync(rangeQuery, yieldResult);
+        public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> yieldResult, Func<bool> stopCondition)
+            => _table.ExecuteAsync(rangeQuery, yieldResult, stopCondition);
 
 
         public IEnumerator<T> GetEnumerator()
