@@ -2,8 +2,8 @@
   "version": "1.0.0",
 
   "dependencies": {
-    "Lykke.Common": "1.1.1",
-    "WindowsAzure.Storage": "7.2.1"
+    "Lykke.Common": "1.1.9",
+    "WindowsAzure.Storage": "8.0.1"
   },
 
   "frameworks": {
