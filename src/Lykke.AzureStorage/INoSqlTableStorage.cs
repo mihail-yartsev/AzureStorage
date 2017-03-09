@@ -52,6 +52,8 @@ namespace AzureStorage
 
         Task<T> DeleteAsync(string partitionKey, string rowKey);
 
+        Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey);
+
         Task DeleteAsync(IEnumerable<T> items);
 
         Task CreateIfNotExistsAsync(T item);

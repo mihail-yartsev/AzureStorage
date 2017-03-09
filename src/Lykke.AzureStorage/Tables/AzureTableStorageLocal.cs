@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 
@@ -98,6 +99,12 @@ namespace AzureStorage.Tables
             if (item != null)
                 await DeleteHttpReqest(partitionKey, rowKey);
             return item;
+        }
+
+        public async Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey)
+        {
+            await DeleteAsync(partitionKey, rowKey);
+            return true;
         }
 
         public async Task DeleteAsync(IEnumerable<T> items)

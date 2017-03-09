@@ -374,6 +374,12 @@ namespace AzureStorage.Tables
             return Task.FromResult(result);
         }
 
+        public async Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey)
+        {
+            await DeleteAsync(partitionKey, rowKey);
+            return true;
+        }
+
         public async Task DeleteAsync(IEnumerable<T> items)
         {
             foreach (var entity in items)

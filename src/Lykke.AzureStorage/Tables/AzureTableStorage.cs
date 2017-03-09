@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Common;
 using Common.Extensions;
@@ -258,6 +259,23 @@ namespace AzureStorage.Tables
             if (itm != null)
                 await DeleteAsync(itm);
             return itm;
+        }
+
+        public async Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey)
+        {
+            try
+            {
+                await DeleteAsync(partitionKey, rowKey);
+            }
+            catch (StorageException ex)
+            {
+                if (ex.RequestInformation.HttpStatusCode == 404)
+                    return false;
+
+                throw;
+            }
+
+            return true;
         }
 
         public Task DeleteAsync(IEnumerable<T> items)

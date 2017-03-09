@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Common.Log;
+using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace AzureStorage.Tables
@@ -93,6 +94,24 @@ namespace AzureStorage.Tables
             var result = await _table.DeleteAsync(partitionKey, rowKey);
             _cache.Delete(partitionKey, rowKey);
             return result;
+        }
+
+        public async Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey)
+        {
+            try
+            {
+                await DeleteAsync(partitionKey, rowKey);
+                _cache.Delete(partitionKey, rowKey);
+            }
+            catch (StorageException ex)
+            {
+                if (ex.RequestInformation.HttpStatusCode == 404)
+                    return false;
+
+                throw;
+            }
+
+            return true;
         }
 
         public Task DeleteAsync(IEnumerable<T> items)
