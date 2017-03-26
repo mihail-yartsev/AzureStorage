@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard1.6</TargetFramework>
+    <AssemblyName>Lykke.AzureStorage</AssemblyName>
+    <PackageId>Lykke.AzureStorage</PackageId>
+    <Version>1.0.1</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lykke.Common" Version="1.1.9" />
+    <PackageReference Include="WindowsAzure.Storage" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>

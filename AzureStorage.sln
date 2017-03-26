@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26228.9
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "AzureStorage", "src\Lykke.AzureStorage\AzureStorage.xproj", "{6087AA29-055D-41AD-A8BB-5F99021DF84A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lykke.AzureStorage", "src\Lykke.AzureStorage\Lykke.AzureStorage.csproj", "{6087AA29-055D-41AD-A8BB-5F99021DF84A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
