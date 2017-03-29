@@ -9,6 +9,7 @@ using Common.Extensions;
 using Common.Log;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.WindowsAzure.Storage.Table.Protocol;
 
 namespace AzureStorage.Tables
 {
@@ -19,7 +20,6 @@ namespace AzureStorage.Tables
         private readonly string _tableName;
 
         private CloudStorageAccount _cloudStorageAccount;
-
         private CloudTable _table;
 
         public AzureTableStorage(string connstionString, string tableName, ILog log)
@@ -27,8 +27,8 @@ namespace AzureStorage.Tables
             _connstionString = connstionString;
             _tableName = tableName;
             _log = log;
+            CreateTableIfNotExists();
         }
-
 
         public Task DoBatchAsync(TableBatchOperation batch)
         {
@@ -430,7 +430,7 @@ namespace AzureStorage.Tables
             {
                 var retrieveOperation = TableOperation.Retrieve<T>(partition, row);
                 var retrievedResult = await GetTable().ExecuteAsync(retrieveOperation);
-                return (T) retrievedResult.Result;
+                return (T)retrievedResult.Result;
             }
             catch (Exception ex)
             {
@@ -570,19 +570,37 @@ namespace AzureStorage.Tables
             });
         }
 
-        private Task CreateTableIfNoExistsAsync()
+        private void CreateTableIfNotExists()
         {
             _cloudStorageAccount = CloudStorageAccount.Parse(_connstionString);
             var cloudTableClient = _cloudStorageAccount.CreateCloudTableClient();
             _table = cloudTableClient.GetTableReference(_tableName);
-            return _table.CreateIfNotExistsAsync();
+
+            try
+            {
+                _table.CreateAsync().Wait();
+            }
+            catch (AggregateException aggregatedException)
+            {
+                //We do not fire exception if table exists - there is no need in such actions
+                aggregatedException.Handle(exception =>
+                {
+                    if (exception is StorageException)
+                    {
+                        StorageException storageException = exception as StorageException;
+                        if (storageException.RequestInformation.HttpStatusCode != (int)HttpStatusCode.Conflict
+                        && storageException.RequestInformation.ExtendedErrorInformation.ErrorCode != TableErrorCodeStrings.TableAlreadyExists)
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+            }
         }
 
         private CloudTable GetTable()
         {
-            if (_table == null)
-                CreateTableIfNoExistsAsync().Wait();
-
             return _table;
         }
 
