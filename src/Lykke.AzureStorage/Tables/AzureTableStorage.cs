@@ -11,7 +11,7 @@ using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage.Table.Protocol;
 using System.Threading;
-using Lykke.AzureStorage.Internal;
+using Lykke.Common.Async;
 
 namespace AzureStorage.Tables
 {
