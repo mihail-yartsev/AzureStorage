@@ -10,6 +10,8 @@ using Common.Log;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage.Table.Protocol;
+using System.Threading;
+using Lykke.AzureStorage.Internal;
 
 namespace AzureStorage.Tables
 {
@@ -20,19 +22,26 @@ namespace AzureStorage.Tables
         private readonly string _tableName;
 
         private CloudStorageAccount _cloudStorageAccount;
-        private CloudTable _table;
+        private AsyncLazy<CloudTable> _table;
+
 
         public AzureTableStorage(string connstionString, string tableName, ILog log)
         {
             _connstionString = connstionString;
             _tableName = tableName;
             _log = log;
-            CreateTableIfNotExists();
+            _table = new AsyncLazy<CloudTable>(
+               async () =>
+               {
+                   CloudTable table = await CreateTableIfNotExists();
+                   return table;
+               }, LazyThreadSafetyMode.PublicationOnly);
         }
 
-        public Task DoBatchAsync(TableBatchOperation batch)
+        public async Task DoBatchAsync(TableBatchOperation batch)
         {
-            return GetTable().ExecuteBatchAsync(batch);
+            CloudTable table = await GetTable();
+            await table.ExecuteBatchAsync(batch);
         }
 
 
@@ -50,7 +59,8 @@ namespace AzureStorage.Tables
         {
             try
             {
-                await GetTable().ExecuteAsync(TableOperation.Insert(item));
+                var table = await GetTable();
+                await table.ExecuteAsync(TableOperation.Insert(item));
             }
             catch (Exception ex)
             {
@@ -59,7 +69,7 @@ namespace AzureStorage.Tables
             }
         }
 
-        public Task InsertAsync(IEnumerable<T> items)
+        public async Task InsertAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
             try
@@ -69,7 +79,8 @@ namespace AzureStorage.Tables
                     var insertBatchOperation = new TableBatchOperation();
                     foreach (var item in items)
                         insertBatchOperation.Insert(item);
-                    return GetTable().ExecuteBatchAsync(insertBatchOperation);
+                    var table = await GetTable();
+                    await table.ExecuteBatchAsync(insertBatchOperation);
                 }
             }
             catch (Exception ex)
@@ -78,14 +89,14 @@ namespace AzureStorage.Tables
                     AzureStorageUtils.PrintItems(items), ex);
                 throw;
             }
-            return Task.CompletedTask;
         }
 
         public async Task InsertOrMergeAsync(T item)
         {
             try
             {
-                await GetTable().ExecuteAsync(TableOperation.InsertOrMerge(item));
+                var table = await GetTable();
+                await table.ExecuteAsync(TableOperation.InsertOrMerge(item));
             }
             catch (Exception ex)
             {
@@ -96,7 +107,7 @@ namespace AzureStorage.Tables
             }
         }
 
-        public Task InsertOrMergeBatchAsync(IEnumerable<T> items)
+        public async Task InsertOrMergeBatchAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
             try
@@ -108,14 +119,14 @@ namespace AzureStorage.Tables
                     {
                         insertBatchOperation.InsertOrMerge(item);
                     }
-                    return GetTable().ExecuteBatchAsync(insertBatchOperation);
+                    var table = await GetTable();
+                    await table.ExecuteBatchAsync(insertBatchOperation);
                 }
             }
             catch (Exception ex)
             {
                 _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrMergeBatchAsync", AzureStorageUtils.PrintItems(items), ex);
             }
-            return Task.CompletedTask;
         }
 
         public async Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> replaceAction)
@@ -132,7 +143,10 @@ namespace AzureStorage.Tables
                             var result = replaceAction(entity);
                             itm = result;
                             if (result != null)
-                                await GetTable().ExecuteAsync(TableOperation.Replace(result));
+                            {
+                                var table = await GetTable();
+                                await table.ExecuteAsync(TableOperation.Replace(result));
+                            }
 
                             return result;
                         }
@@ -170,7 +184,10 @@ namespace AzureStorage.Tables
                             var result = mergeAction(entity);
                             itm = result;
                             if (result != null)
-                                await GetTable().ExecuteAsync(TableOperation.Merge(result));
+                            {
+                                var table = await GetTable();
+                                await table.ExecuteAsync(TableOperation.Merge(result));
+                            }
 
                             return result;
                         }
@@ -192,21 +209,23 @@ namespace AzureStorage.Tables
             }
         }
 
-        public Task InsertOrReplaceBatchAsync(IEnumerable<T> entites)
+        public async Task InsertOrReplaceBatchAsync(IEnumerable<T> entites)
         {
             var operationsBatch = new TableBatchOperation();
 
             foreach (var entity in entites)
                 operationsBatch.Add(TableOperation.InsertOrReplace(entity));
+            var table = await GetTable();
 
-            return GetTable().ExecuteBatchAsync(operationsBatch);
+            await table.ExecuteBatchAsync(operationsBatch);
         }
 
         public virtual async Task InsertOrReplaceAsync(T item)
         {
             try
             {
-                await GetTable().ExecuteAsync(TableOperation.InsertOrReplace(item));
+                var table = await GetTable();
+                await table.ExecuteAsync(TableOperation.InsertOrReplace(item));
             }
             catch (Exception ex)
             {
@@ -217,7 +236,7 @@ namespace AzureStorage.Tables
             }
         }
 
-        public Task InsertOrReplaceAsync(IEnumerable<T> items)
+        public async Task InsertOrReplaceAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
             try
@@ -229,21 +248,22 @@ namespace AzureStorage.Tables
                     {
                         insertBatchOperation.InsertOrReplace(item);
                     }
-                    return GetTable().ExecuteBatchAsync(insertBatchOperation);
+                    var table = await GetTable();
+                    await table.ExecuteBatchAsync(insertBatchOperation);
                 }
             }
             catch (Exception ex)
             {
                 _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrReplaceAsync batch", AzureStorageUtils.PrintItems(items), ex);
             }
-            return Task.CompletedTask;
         }
 
         public virtual async Task DeleteAsync(T item)
         {
             try
             {
-                await GetTable().ExecuteAsync(TableOperation.Delete(item));
+                var table = await GetTable();
+                await table.ExecuteAsync(TableOperation.Delete(item));
             }
             catch (Exception ex)
             {
@@ -278,7 +298,7 @@ namespace AzureStorage.Tables
             return true;
         }
 
-        public Task DeleteAsync(IEnumerable<T> items)
+        public async Task DeleteAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
             try
@@ -288,7 +308,8 @@ namespace AzureStorage.Tables
                     var deleteBatchOperation = new TableBatchOperation();
                     foreach (var item in items)
                         deleteBatchOperation.Delete(item);
-                    return GetTable().ExecuteBatchAsync(deleteBatchOperation);
+                    var table = await GetTable();
+                    await table.ExecuteBatchAsync(deleteBatchOperation);
                 }
             }
             catch (Exception ex)
@@ -296,14 +317,14 @@ namespace AzureStorage.Tables
                 _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "DeleteAsync batch",
                     AzureStorageUtils.PrintItems(items), ex);
             }
-            return Task.CompletedTask;
         }
 
-        public virtual Task CreateIfNotExistsAsync(T item)
+        public virtual async Task CreateIfNotExistsAsync(T item)
         {
             try
             {
-                return GetTable().CreateIfNotExistsAsync();
+                var table = await GetTable();
+                await table.CreateIfNotExistsAsync();
             }
             catch (Exception ex)
             {
@@ -429,7 +450,8 @@ namespace AzureStorage.Tables
             try
             {
                 var retrieveOperation = TableOperation.Retrieve<T>(partition, row);
-                var retrievedResult = await GetTable().ExecuteAsync(retrieveOperation);
+                var table = await GetTable();
+                var retrievedResult = await table.ExecuteAsync(retrieveOperation);
                 return (T)retrievedResult.Result;
             }
             catch (Exception ex)
@@ -570,38 +592,38 @@ namespace AzureStorage.Tables
             });
         }
 
-        private void CreateTableIfNotExists()
+        private async Task<CloudTable> CreateTableIfNotExists()
         {
             _cloudStorageAccount = CloudStorageAccount.Parse(_connstionString);
             var cloudTableClient = _cloudStorageAccount.CreateCloudTableClient();
-            _table = cloudTableClient.GetTableReference(_tableName);
+            CloudTable table = cloudTableClient.GetTableReference(_tableName);
 
             try
             {
-                _table.CreateAsync().Wait();
+                await table.CreateAsync();
             }
-            catch (AggregateException aggregatedException)
+            catch (StorageException storageException)
             {
                 //We do not fire exception if table exists - there is no need in such actions
-                aggregatedException.Handle(exception =>
+                if (storageException.RequestInformation.HttpStatusCode != (int)HttpStatusCode.Conflict
+                && storageException.RequestInformation.ExtendedErrorInformation.ErrorCode != TableErrorCodeStrings.TableAlreadyExists)
                 {
-                    if (exception is StorageException)
-                    {
-                        StorageException storageException = exception as StorageException;
-                        if (storageException.RequestInformation.HttpStatusCode != (int)HttpStatusCode.Conflict
-                        && storageException.RequestInformation.ExtendedErrorInformation.ErrorCode != TableErrorCodeStrings.TableAlreadyExists)
-                        {
-                            return false;
-                        }
-                    }
-                    return true;
-                });
+                    await _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "", storageException);
+                    throw;
+                }
             }
+            catch (Exception exception)
+            {
+                await _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "unknown case", exception);
+                throw;
+            }
+
+            return table;
         }
 
-        private CloudTable GetTable()
+        private async Task<CloudTable> GetTable()
         {
-            return _table;
+            return await _table.Value;
         }
 
 
@@ -611,7 +633,7 @@ namespace AzureStorage.Tables
             try
             {
                 TableContinuationToken tableContinuationToken = null;
-                var table = GetTable();
+                var table = await GetTable();
                 do
                 {
                     var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken);
@@ -642,7 +664,7 @@ namespace AzureStorage.Tables
             try
             {
                 TableContinuationToken tableContinuationToken = null;
-                var table = GetTable();
+                var table = await GetTable();
                 do
                 {
                     var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken);
@@ -666,7 +688,7 @@ namespace AzureStorage.Tables
             try
             {
                 TableContinuationToken tableContinuationToken = null;
-                var table = GetTable();
+                var table = await GetTable();
                 do
                 {
                     var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken);

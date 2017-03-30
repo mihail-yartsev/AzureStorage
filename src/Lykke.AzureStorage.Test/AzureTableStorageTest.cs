@@ -41,10 +41,7 @@ namespace Lykke.AzureStorage.Test
         [TestMethod]
         public void AzureStorage_CheckInsert()
         {
-            TestEntity testEntity = new TestEntity();
-            testEntity.PartitionKey = "TestEntity";
-            testEntity.FakeField = "Test";
-            testEntity.RowKey = Guid.NewGuid().ToString();
+            TestEntity testEntity = GetTestEntity();
             _testEntityStorage.InsertAsync(testEntity).Wait();
             TestEntity createdEntity = _testEntityStorage.GetDataAsync(testEntity.PartitionKey, testEntity.RowKey).Result;
 
@@ -54,9 +51,21 @@ namespace Lykke.AzureStorage.Test
         [TestMethod]
         public void AzureStorage_CheckNoError_TableCreation()
         {
-            //We call table creation in constructor
-            new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
-            new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
+            TestEntity testEntity = GetTestEntity();
+            var storage1 = new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
+            var storage2 = new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
+            storage1.CreateIfNotExistsAsync(testEntity).Wait();
+            storage2.CreateIfNotExistsAsync(testEntity).Wait();
+        }
+
+        private TestEntity GetTestEntity()
+        {
+            TestEntity testEntity = new TestEntity();
+            testEntity.PartitionKey = "TestEntity";
+            testEntity.FakeField = "Test";
+            testEntity.RowKey = Guid.NewGuid().ToString();
+
+            return testEntity;
         }
     }
 }
