@@ -11,21 +11,45 @@ namespace AzureStorage.Queue
     public class AzureQueueExt : IQueueExt
     {
         private readonly Dictionary<string, Type> _types = new Dictionary<string, Type>();
-        private CloudQueue _queue;
+        private readonly string _queueName;
+        private readonly CloudStorageAccount _storageAccount;
+        private bool _queueCreated;
 
         public AzureQueueExt(string conectionString, string queueName)
         {
             queueName = queueName.ToLower();
-            var storageAccount = CloudStorageAccount.Parse(conectionString);
-            var queueClient = storageAccount.CreateCloudQueueClient();
+            _storageAccount = CloudStorageAccount.Parse(conectionString);
+            _queueName = queueName;
+        }
 
-            _queue = queueClient.GetQueueReference(queueName);
-            _queue.CreateIfNotExistsAsync().Wait();
+        private async Task<CloudQueue> GetQueue()
+        {
+            if (_queueCreated)
+                return CreateQueueReference();
+            return await CreateQueueIfNotExists();
+        }
+
+        private async Task<CloudQueue> CreateQueueIfNotExists()
+        {
+            var queue = CreateQueueReference();
+
+            await queue.CreateIfNotExistsAsync();
+
+            _queueCreated = true;
+
+            return queue;
+        }
+
+        private CloudQueue CreateQueueReference()
+        {
+            var queueClient = _storageAccount.CreateCloudQueueClient();
+            return queueClient.GetQueueReference(_queueName);
         }
 
         public async Task<QueueData> GetMessageAsync()
         {
-            var msg = await _queue.GetMessageAsync();
+            var queue = await GetQueue();
+            var msg = await queue.GetMessageAsync();
 
             if (msg == null)
                 return null;
@@ -37,18 +61,21 @@ namespace AzureStorage.Queue
             };
         }
 
-		public Task PutRawMessageAsync(string msg)
-		{
-			return _queue.AddMessageAsync(new CloudQueueMessage(msg));
-		}
+        public async Task PutRawMessageAsync(string msg)
+        {
+            var queue = await GetQueue();
+            await queue.AddMessageAsync(new CloudQueueMessage(msg));
+        }
 
-		public Task FinishMessageAsync(QueueData token)
+        public async Task FinishMessageAsync(QueueData token)
         {
             var cloudQueueMessage = token.Token as CloudQueueMessage;
             if (cloudQueueMessage == null)
-                return Task.FromResult(0);
+                return;
 
-            return _queue.DeleteMessageAsync(cloudQueueMessage);
+            var queue = await GetQueue();
+
+            await queue.DeleteMessageAsync(cloudQueueMessage);
         }
 
 
@@ -58,26 +85,32 @@ namespace AzureStorage.Queue
             if (msg == null)
                 return string.Empty;
 
-            await _queue.AddMessageAsync(new CloudQueueMessage(msg));
+            var queue = await GetQueue();
+
+            await queue.AddMessageAsync(new CloudQueueMessage(msg));
             return msg;
         }
 
         public async Task<object[]> GetMessagesAsync(int maxCount)
         {
-            var messages = await _queue.GetMessagesAsync(maxCount);
+            var queue = await GetQueue();
+
+            var messages = await queue.GetMessagesAsync(maxCount);
 
             var cloudQueueMessages = messages as CloudQueueMessage[] ?? messages.ToArray();
             foreach (var cloudQueueMessage in cloudQueueMessages)
-                await _queue.DeleteMessageAsync(cloudQueueMessage);
+                await queue.DeleteMessageAsync(cloudQueueMessage);
 
             return cloudQueueMessages
                 .Select(message => DeserializeObject(message.AsString))
                 .Where(itm => itm != null).ToArray();
         }
 
-        public Task ClearAsync()
+        public async Task ClearAsync()
         {
-            return _queue.ClearAsync();
+            var queue = await GetQueue();
+
+            await queue.ClearAsync();
         }
 
         public void RegisterTypes(params QueueType[] types)
@@ -86,22 +119,25 @@ namespace AzureStorage.Queue
                 _types.Add(type.Id, type.Type);
         }
 
-	    public Task<CloudQueueMessage> GetRawMessageAsync(int visibilityTimeoutSeconds = 30)
-	    {
-		    return _queue.GetMessageAsync(TimeSpan.FromSeconds(visibilityTimeoutSeconds), null, null);
-	    }
+        public async Task<CloudQueueMessage> GetRawMessageAsync(int visibilityTimeoutSeconds = 30)
+        {
+            var queue = await GetQueue();
+            return await queue.GetMessageAsync(TimeSpan.FromSeconds(visibilityTimeoutSeconds), null, null);
+        }
 
-	    public Task FinishRawMessageAsync(CloudQueueMessage msg)
-	    {
-		    return _queue.DeleteMessageAsync(msg);
-	    }
+        public async Task FinishRawMessageAsync(CloudQueueMessage msg)
+        {
+            var queue = await GetQueue();
+            await queue.DeleteMessageAsync(msg);
+        }
 
-	    public Task ReleaseRawMessageAsync(CloudQueueMessage msg)
-	    {
-		    return _queue.UpdateMessageAsync(msg, TimeSpan.Zero, MessageUpdateFields.Visibility);
-	    }
+        public async Task ReleaseRawMessageAsync(CloudQueueMessage msg)
+        {
+            var queue = await GetQueue();
+            await queue.UpdateMessageAsync(msg, TimeSpan.Zero, MessageUpdateFields.Visibility);
+        }
 
-	    private string SerializeObject(object itm)
+        private string SerializeObject(object itm)
         {
             var myType = itm.GetType();
             return
@@ -132,8 +168,9 @@ namespace AzureStorage.Queue
 
         public async Task<int?> Count()
         {
-            await _queue.FetchAttributesAsync();
-            return _queue.ApproximateMessageCount;
+            var queue = await GetQueue();
+            await queue.FetchAttributesAsync();
+            return queue.ApproximateMessageCount;
         }
     }
 }

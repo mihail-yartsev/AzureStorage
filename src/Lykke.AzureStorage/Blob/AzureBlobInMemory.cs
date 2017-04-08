@@ -121,6 +121,12 @@ namespace AzureStorage.Blob
                 return Task.Run(() => GetBlob(container).Select(itm => itm.Key));
         }
 
+        public Task<IEnumerable<string>> GetListOfBlobKeysAsync(string container)
+        {
+            lock (_lockObject)
+                return Task.Run(() => GetBlob(container).Select(itm => itm.Key));
+        }
+
         public void DelBlob(string container, string key)
         {
             lock (_lockObject)

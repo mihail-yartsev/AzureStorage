@@ -17,25 +17,20 @@ namespace AzureStorage.Tables
 {
     public class AzureTableStorage<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
     {
-        private readonly string _connstionString;
+        public const int Conflict = 409;
+        
         private readonly ILog _log;
         private readonly string _tableName;
 
-        private CloudStorageAccount _cloudStorageAccount;
-        private AsyncLazy<CloudTable> _table;
+        private readonly CloudStorageAccount _cloudStorageAccount;
+        private bool _tableCreated;
 
 
-        public AzureTableStorage(string connstionString, string tableName, ILog log)
+        public AzureTableStorage(string connectionString, string tableName, ILog log)
         {
-            _connstionString = connstionString;
             _tableName = tableName;
             _log = log;
-            _table = new AsyncLazy<CloudTable>(
-               async () =>
-               {
-                   CloudTable table = await CreateTableIfNotExists();
-                   return table;
-               }, LazyThreadSafetyMode.PublicationOnly);
+            _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
         }
 
         public async Task DoBatchAsync(TableBatchOperation batch)
@@ -43,7 +38,6 @@ namespace AzureStorage.Tables
             CloudTable table = await GetTable();
             await table.ExecuteBatchAsync(batch);
         }
-
 
         public virtual IEnumerator<T> GetEnumerator()
         {
@@ -323,15 +317,12 @@ namespace AzureStorage.Tables
         {
             try
             {
-                var table = await GetTable();
-                await table.CreateIfNotExistsAsync();
+                await InsertAsync(item, Conflict);
             }
-            catch (Exception ex)
+            catch (StorageException e)
             {
-                _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "Create if not exists",
-                    AzureStorageUtils.PrintItem(item), ex);
-
-                throw;
+                if (e.RequestInformation.HttpStatusCode != Conflict)
+                    throw;
             }
         }
 
@@ -592,40 +583,37 @@ namespace AzureStorage.Tables
             });
         }
 
+        private CloudTable GetTableReference()
+        {
+            var cloudTableClient = _cloudStorageAccount.CreateCloudTableClient();
+            return cloudTableClient.GetTableReference(_tableName);
+        }
+
         private async Task<CloudTable> CreateTableIfNotExists()
         {
-            _cloudStorageAccount = CloudStorageAccount.Parse(_connstionString);
-            var cloudTableClient = _cloudStorageAccount.CreateCloudTableClient();
-            CloudTable table = cloudTableClient.GetTableReference(_tableName);
+            var table = GetTableReference();
 
             try
             {
-                await table.CreateAsync();
-            }
-            catch (StorageException storageException)
-            {
-                //We do not fire exception if table exists - there is no need in such actions
-                if (storageException.RequestInformation.HttpStatusCode != (int)HttpStatusCode.Conflict
-                && storageException.RequestInformation.ExtendedErrorInformation.ErrorCode != TableErrorCodeStrings.TableAlreadyExists)
-                {
-                    await _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "", storageException);
-                    throw;
-                }
+                await table.CreateIfNotExistsAsync();
             }
             catch (Exception exception)
             {
-                await _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "unknown case", exception);
+                _log?.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "unknown case", exception).Wait();
                 throw;
             }
+
+            _tableCreated = true;
 
             return table;
         }
 
         private async Task<CloudTable> GetTable()
         {
-            return await _table.Value;
+            if (_tableCreated)
+                return GetTableReference();
+            return await CreateTableIfNotExists();
         }
-
 
         private async Task ExecuteQueryAsync(string processName, TableQuery<T> rangeQuery, Func<T, bool> filter,
             Func<IEnumerable<T>, Task> yieldData)

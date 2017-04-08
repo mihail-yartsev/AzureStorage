@@ -6,6 +6,7 @@ using Microsoft.WindowsAzure.Storage;
 using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Lykke.AzureStorage.Test
 {
@@ -16,54 +17,69 @@ namespace Lykke.AzureStorage.Test
     [TestClass]
     public class AzureTableStorageTest
     {
-        private static IConfigurationRoot _configuration { get; set; }
-        private string _azureStorageConnectionString = @"";
+        private readonly string _azureStorageConnectionString;
         private AzureTableStorage<TestEntity> _testEntityStorage;
         private string _tableName = "LykkeAzureStorageTest";
 
         //AzureStorage - azure account
         public AzureTableStorageTest()
         {
-           _configuration = new ConfigurationBuilder()
-               .AddJsonFile("appsettings.json", optional: true)
-               .Build();
+            var configuration = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true)
+                .Build();
 
-           _azureStorageConnectionString  = _configuration["AzureStorage"];
+            _azureStorageConnectionString = configuration["AzureStorage"];
         }
 
         [TestInitialize]
         public void TestInit()
         {
-            _testEntityStorage =
-                new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
+            _testEntityStorage = new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
+        }
+
+        [TestCleanup]
+        public async Task TestClean()
+        {
+            var items = await _testEntityStorage.GetDataAsync();
+            await _testEntityStorage.DeleteAsync(items);
         }
 
         [TestMethod]
-        public void AzureStorage_CheckInsert()
+        public async Task AzureStorage_CheckInsert()
         {
             TestEntity testEntity = GetTestEntity();
-            _testEntityStorage.InsertAsync(testEntity).Wait();
-            TestEntity createdEntity = _testEntityStorage.GetDataAsync(testEntity.PartitionKey, testEntity.RowKey).Result;
 
-            Assert.IsTrue(createdEntity != null);
+            await _testEntityStorage.InsertAsync(testEntity);
+            var createdEntity = await _testEntityStorage.GetDataAsync(testEntity.PartitionKey, testEntity.RowKey);
+
+            Assert.IsNotNull(createdEntity);
         }
 
         [TestMethod]
-        public void AzureStorage_CheckNoError_TableCreation()
+        public async Task AzureStorage_CheckParallelInsert()
         {
-            TestEntity testEntity = GetTestEntity();
+            var testEntity = GetTestEntity();
+
             var storage1 = new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
-            var storage2 = new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
-            storage1.CreateIfNotExistsAsync(testEntity).Wait();
-            storage2.CreateIfNotExistsAsync(testEntity).Wait();
+
+            Parallel.For(1, 10, i =>
+            {
+                storage1.CreateIfNotExistsAsync(testEntity).Wait();
+            });
+
+            var createdEntity = await _testEntityStorage.GetDataAsync(testEntity.PartitionKey, testEntity.RowKey);
+
+            Assert.IsNotNull(createdEntity);
         }
 
         private TestEntity GetTestEntity()
         {
-            TestEntity testEntity = new TestEntity();
-            testEntity.PartitionKey = "TestEntity";
-            testEntity.FakeField = "Test";
-            testEntity.RowKey = Guid.NewGuid().ToString();
+            TestEntity testEntity = new TestEntity
+            {
+                PartitionKey = "TestEntity",
+                FakeField = "Test",
+                RowKey = Guid.NewGuid().ToString()
+            };
 
             return testEntity;
         }
