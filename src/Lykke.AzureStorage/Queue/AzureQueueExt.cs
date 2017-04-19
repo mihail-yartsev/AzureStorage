@@ -14,12 +14,14 @@ namespace AzureStorage.Queue
         private readonly string _queueName;
         private readonly CloudStorageAccount _storageAccount;
         private bool _queueCreated;
+        private readonly TimeSpan _maxExecutionTime;
 
-        public AzureQueueExt(string conectionString, string queueName)
+        public AzureQueueExt(string conectionString, string queueName, TimeSpan? maxExecutionTimeout = null)
         {
             queueName = queueName.ToLower();
             _storageAccount = CloudStorageAccount.Parse(conectionString);
             _queueName = queueName;
+            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
         }
 
         private async Task<CloudQueue> GetQueue()
@@ -46,10 +48,15 @@ namespace AzureStorage.Queue
             return queueClient.GetQueueReference(_queueName);
         }
 
+        private QueueRequestOptions GetRequestOptions()
+        {
+            return new QueueRequestOptions { MaximumExecutionTime = _maxExecutionTime };
+        }
+
         public async Task<QueueData> GetMessageAsync()
         {
             var queue = await GetQueue();
-            var msg = await queue.GetMessageAsync();
+            var msg = await queue.GetMessageAsync(null, GetRequestOptions(), null);
 
             if (msg == null)
                 return null;
@@ -64,7 +71,7 @@ namespace AzureStorage.Queue
         public async Task PutRawMessageAsync(string msg)
         {
             var queue = await GetQueue();
-            await queue.AddMessageAsync(new CloudQueueMessage(msg));
+            await queue.AddMessageAsync(new CloudQueueMessage(msg), null, null, GetRequestOptions(), null);
         }
 
         public async Task FinishMessageAsync(QueueData token)
@@ -75,7 +82,7 @@ namespace AzureStorage.Queue
 
             var queue = await GetQueue();
 
-            await queue.DeleteMessageAsync(cloudQueueMessage);
+            await queue.DeleteMessageAsync(cloudQueueMessage, GetRequestOptions(), null);
         }
 
 
@@ -87,7 +94,7 @@ namespace AzureStorage.Queue
 
             var queue = await GetQueue();
 
-            await queue.AddMessageAsync(new CloudQueueMessage(msg));
+            await queue.AddMessageAsync(new CloudQueueMessage(msg), null, null, GetRequestOptions(), null);
             return msg;
         }
 
@@ -95,7 +102,7 @@ namespace AzureStorage.Queue
         {
             var queue = await GetQueue();
 
-            var messages = await queue.GetMessagesAsync(maxCount);
+            var messages = await queue.GetMessagesAsync(maxCount, null, GetRequestOptions(), null);
 
             var cloudQueueMessages = messages as CloudQueueMessage[] ?? messages.ToArray();
             foreach (var cloudQueueMessage in cloudQueueMessages)
@@ -110,7 +117,7 @@ namespace AzureStorage.Queue
         {
             var queue = await GetQueue();
 
-            await queue.ClearAsync();
+            await queue.ClearAsync(GetRequestOptions(), null);
         }
 
         public void RegisterTypes(params QueueType[] types)
@@ -122,19 +129,19 @@ namespace AzureStorage.Queue
         public async Task<CloudQueueMessage> GetRawMessageAsync(int visibilityTimeoutSeconds = 30)
         {
             var queue = await GetQueue();
-            return await queue.GetMessageAsync(TimeSpan.FromSeconds(visibilityTimeoutSeconds), null, null);
+            return await queue.GetMessageAsync(TimeSpan.FromSeconds(visibilityTimeoutSeconds), GetRequestOptions(), null);
         }
 
         public async Task FinishRawMessageAsync(CloudQueueMessage msg)
         {
             var queue = await GetQueue();
-            await queue.DeleteMessageAsync(msg);
+            await queue.DeleteMessageAsync(msg, GetRequestOptions(), null);
         }
 
         public async Task ReleaseRawMessageAsync(CloudQueueMessage msg)
         {
             var queue = await GetQueue();
-            await queue.UpdateMessageAsync(msg, TimeSpan.Zero, MessageUpdateFields.Visibility);
+            await queue.UpdateMessageAsync(msg, TimeSpan.Zero, MessageUpdateFields.Visibility, GetRequestOptions(), null);
         }
 
         private string SerializeObject(object itm)
@@ -169,7 +176,7 @@ namespace AzureStorage.Queue
         public async Task<int?> Count()
         {
             var queue = await GetQueue();
-            await queue.FetchAttributesAsync();
+            await queue.FetchAttributesAsync(GetRequestOptions(), null);
             return queue.ApproximateMessageCount;
         }
     }

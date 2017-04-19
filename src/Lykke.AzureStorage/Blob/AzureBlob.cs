@@ -13,10 +13,12 @@ namespace AzureStorage.Blob
     public class AzureBlobStorage : IBlobStorage
     {
         private readonly CloudStorageAccount _storageAccount;
+        private readonly TimeSpan _maxExecutionTime;
 
-        public AzureBlobStorage(string connectionString)
+        public AzureBlobStorage(string connectionString, TimeSpan? maxExecutionTimeout = null)
         {
             _storageAccount = CloudStorageAccount.Parse(connectionString);
+            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
         }
 
         private CloudBlobContainer GetContainerReference(string container)
@@ -25,12 +27,20 @@ namespace AzureStorage.Blob
             return blobClient.GetContainerReference(container.ToLower());
         }
 
+        private BlobRequestOptions GetRequestOptions()
+        {
+            return new BlobRequestOptions
+            {
+                MaximumExecutionTime = _maxExecutionTime
+            };
+        }
+
         public async Task<string> SaveBlobAsync(string container, string key, Stream bloblStream, bool anonymousAccess = false)
         {
             var blockBlob = await GetBlockBlobReference(container, key, anonymousAccess);
 
             bloblStream.Position = 0;
-            await blockBlob.UploadFromStreamAsync(bloblStream);
+            await blockBlob.UploadFromStreamAsync(bloblStream, null, GetRequestOptions(), null);
 
             return blockBlob.Uri.AbsoluteUri;
         }
@@ -39,14 +49,14 @@ namespace AzureStorage.Blob
         {
             var containerRef = GetContainerReference(container);
 
-            if (!await containerRef.ExistsAsync())
+            if (!await containerRef.ExistsAsync(GetRequestOptions(), null))
             {
-                await containerRef.CreateIfNotExistsAsync();
+                await containerRef.CreateIfNotExistsAsync(GetRequestOptions(), null);
                 if (anonymousAccess)
                 {
-                    BlobContainerPermissions permissions = await containerRef.GetPermissionsAsync();
+                    BlobContainerPermissions permissions = await containerRef.GetPermissionsAsync(null, GetRequestOptions(), null);
                     permissions.PublicAccess = BlobContainerPublicAccessType.Container;
-                    await containerRef.SetPermissionsAsync(permissions);
+                    await containerRef.SetPermissionsAsync(permissions, null, GetRequestOptions(), null);
                 }
             }
 
@@ -56,16 +66,16 @@ namespace AzureStorage.Blob
         public async Task SaveBlobAsync(string container, string key, byte[] blob)
         {
             var containerRef = GetContainerReference(container);
-            await containerRef.CreateIfNotExistsAsync();
+            await containerRef.CreateIfNotExistsAsync(GetRequestOptions(), null);
 
             var blockBlob = containerRef.GetBlockBlobReference(key);
-            await blockBlob.UploadFromByteArrayAsync(blob, 0, blob.Length);
+            await blockBlob.UploadFromByteArrayAsync(blob, 0, blob.Length, null, GetRequestOptions(), null);
         }
 
         public Task<bool> HasBlobAsync(string container, string key)
         {
             var blobRef = GetContainerReference(container).GetBlobReference(key);
-            return blobRef.ExistsAsync();
+            return blobRef.ExistsAsync(GetRequestOptions(), null);
         }
 
         public async Task<DateTime> GetBlobsLastModifiedAsync(string container)
@@ -76,7 +86,7 @@ namespace AzureStorage.Blob
 
             do
             {
-                var response = await containerRef.ListBlobsSegmentedAsync(continuationToken);
+                var response = await containerRef.ListBlobsSegmentedAsync(null, false, BlobListingDetails.None, null, continuationToken, GetRequestOptions(), null);
                 continuationToken = response.ContinuationToken;
                 foreach (var listBlobItem in response.Results)
                 {
@@ -96,7 +106,7 @@ namespace AzureStorage.Blob
             var blockBlob = containerRef.GetBlockBlobReference(key);
 
             var ms = new MemoryStream();
-            await blockBlob.DownloadToStreamAsync(ms);
+            await blockBlob.DownloadToStreamAsync(ms, null, GetRequestOptions(), null);
             ms.Position = 0;
             return ms;
         }
@@ -106,7 +116,7 @@ namespace AzureStorage.Blob
             var containerRef = GetContainerReference(blobContainer);
 
             var blockBlob = containerRef.GetBlockBlobReference(key);
-            return await blockBlob.DownloadTextAsync();
+            return await blockBlob.DownloadTextAsync(null, GetRequestOptions(), null);
         }
 
         public string GetBlobUrl(string container, string key)
@@ -125,7 +135,7 @@ namespace AzureStorage.Blob
 
             do
             {
-                var response = await containerRef.ListBlobsSegmentedAsync(continuationToken);
+                var response = await containerRef.ListBlobsSegmentedAsync(null, false, BlobListingDetails.None, null, continuationToken, GetRequestOptions(), null);
                 continuationToken = response.ContinuationToken;
                 foreach (var listBlobItem in response.Results)
                 {
@@ -145,7 +155,7 @@ namespace AzureStorage.Blob
             var results = new List<string>();
             do
             {
-                var result = await containerRef.ListBlobsSegmentedAsync(token);
+                var result = await containerRef.ListBlobsSegmentedAsync(null, false, BlobListingDetails.None, null, token, GetRequestOptions(), null);
                 token = result.ContinuationToken;
                 foreach (var listBlobItem in result.Results)
                 {
@@ -166,7 +176,7 @@ namespace AzureStorage.Blob
             var results = new List<string>();
             do
             {
-                var result = await containerRef.ListBlobsSegmentedAsync(token);
+                var result = await containerRef.ListBlobsSegmentedAsync(null, false, BlobListingDetails.None, null, token, GetRequestOptions(), null);
                 token = result.ContinuationToken;
                 foreach (var listBlobItem in result.Results.OfType<CloudBlockBlob>())
                 {
@@ -184,7 +194,7 @@ namespace AzureStorage.Blob
             var containerRef = GetContainerReference(blobContainer);
 
             var blockBlob = containerRef.GetBlockBlobReference(key);
-            return blockBlob.DeleteAsync();
+            return blockBlob.DeleteAsync(DeleteSnapshotsOption.None, null, GetRequestOptions(), null);
         }
 
         public Stream this[string container, string key]
@@ -195,7 +205,7 @@ namespace AzureStorage.Blob
 
                 var blockBlob = containerRef.GetBlockBlobReference(key);
                 var ms = new MemoryStream();
-                blockBlob.DownloadToStreamAsync(ms).RunSync();
+                blockBlob.DownloadToStreamAsync(ms, null, GetRequestOptions(), null).RunSync();
                 ms.Position = 0;
                 return ms;
             }
