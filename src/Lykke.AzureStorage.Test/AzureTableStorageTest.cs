@@ -83,5 +83,22 @@ namespace Lykke.AzureStorage.Test
 
             return testEntity;
         }
+
+        [TestMethod]
+        public async Task AzureStorage_WithCache_Test()
+        {
+            var testEntity = GetTestEntity();
+
+            var storage1 = new AzureTableStorageWithCache<TestEntity>(_azureStorageConnectionString, _tableName, null);
+
+            Parallel.For(1, 10, i =>
+            {
+                storage1.CreateIfNotExistsAsync(testEntity).Wait();
+            });
+
+            var createdEntity = await storage1.GetDataAsync(testEntity.PartitionKey, testEntity.RowKey);
+
+            Assert.IsNotNull(createdEntity);
+        }
     }
 }

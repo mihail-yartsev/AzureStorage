@@ -28,7 +28,7 @@ namespace AzureStorage.Tables
         public async Task InsertAsync(T item, params int[] notLogCodes)
         {
             await _table.InsertAsync(item, notLogCodes);
-            _cache.Insert(item, notLogCodes);
+            await _cache.InsertAsync(item, notLogCodes);
         }
 
         public async Task InsertAsync(IEnumerable<T> items)
@@ -40,7 +40,7 @@ namespace AzureStorage.Tables
         public async Task InsertOrMergeAsync(T item)
         {
             await _table.InsertOrMergeAsync(item);
-            _cache.InsertOrMerge(item);
+            await _cache.InsertOrMergeAsync(item);
         }
 
         public async Task InsertOrMergeBatchAsync(IEnumerable<T> items)
@@ -52,7 +52,7 @@ namespace AzureStorage.Tables
         public async Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> item)
         {
             var result = await _table.ReplaceAsync(partitionKey, rowKey, item);
-            _cache.Replace(partitionKey, rowKey, item);
+            await _cache.ReplaceAsync(partitionKey, rowKey, item);
 
             return result;
         }
@@ -60,7 +60,7 @@ namespace AzureStorage.Tables
         public async Task<T> MergeAsync(string partitionKey, string rowKey, Func<T, T> item)
         {
             var result = await _table.MergeAsync(partitionKey, rowKey, item);
-            _cache.Merge(partitionKey, rowKey, item);
+            await _cache.MergeAsync(partitionKey, rowKey, item);
             return result;
         }
 
@@ -68,13 +68,13 @@ namespace AzureStorage.Tables
         {
             var myArray = entites as T[] ?? entites.ToArray();
             await _table.InsertOrReplaceBatchAsync(myArray);
-            _cache.InsertOrReplaceBatch(myArray);
+            await _cache.InsertOrReplaceBatchAsync(myArray);
         }
 
         public async Task InsertOrReplaceAsync(T item)
         {
             await _table.InsertOrReplaceAsync(item);
-            _cache.InsertOrReplace(item);
+            await _cache.InsertOrReplaceAsync(item);
         }
 
         public async Task InsertOrReplaceAsync(IEnumerable<T> items)
@@ -86,13 +86,13 @@ namespace AzureStorage.Tables
         public async Task DeleteAsync(T item)
         {
             await _table.DeleteAsync(item);
-            _cache.Delete(item);
+            await _cache.DeleteAsync(item);
         }
 
         public async Task<T> DeleteAsync(string partitionKey, string rowKey)
         {
             var result = await _table.DeleteAsync(partitionKey, rowKey);
-            _cache.Delete(partitionKey, rowKey);
+            await _cache.DeleteAsync(partitionKey, rowKey);
             return result;
         }
 
@@ -101,7 +101,7 @@ namespace AzureStorage.Tables
             try
             {
                 await DeleteAsync(partitionKey, rowKey);
-                _cache.Delete(partitionKey, rowKey);
+                await _cache.DeleteAsync(partitionKey, rowKey);
             }
             catch (StorageException ex)
             {
@@ -114,9 +114,10 @@ namespace AzureStorage.Tables
             return true;
         }
 
-        public Task DeleteAsync(IEnumerable<T> items)
+        public async Task DeleteAsync(IEnumerable<T> items)
         {
-            throw new NotImplementedException();
+            await _table.DeleteAsync(items);
+            await _cache.DeleteAsync(items);
         }
 
         public async Task CreateIfNotExistsAsync(T item)
@@ -207,8 +208,7 @@ namespace AzureStorage.Tables
         private void Init()
         {
             // Вычитаем вообще все элементы в кэш
-            foreach (var item in _table)
-                _cache.Insert(item);
+            Task.WhenAll(_cache.InsertAsync(_table));
         }
 
         public IEnumerable<T> GetData(Func<T, bool> filter = null) => _cache.GetData(filter);

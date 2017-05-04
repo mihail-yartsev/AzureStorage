@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -24,7 +25,7 @@ namespace AzureStorage.Tables
 
         private static IEnumerable<PropertyInfo> GetProps(Type type)
         {
-           return type.GetProperties().Where(prop => prop.CanWrite && prop.CanRead);
+            return type.GetProperties().Where(prop => prop.CanWrite && prop.CanRead);
         }
 
         public void Merge(object instance)
@@ -54,7 +55,7 @@ namespace AzureStorage.Tables
             foreach (var prop in GetProps(instance.GetType()))
             {
                 var value = prop.GetValue(instance, null);
-                if (value !=null) Data.Add(prop.Name, value);
+                if (value != null) Data.Add(prop.Name, value);
             }
         }
 
@@ -79,30 +80,27 @@ namespace AzureStorage.Tables
     {
         public Partition()
         {
-            Rows = new Dictionary<string, Row>();
+            Rows = new ConcurrentDictionary<string, Row>();
         }
 
-        public Dictionary<string, Row> Rows { get; private set; } 
+        public ConcurrentDictionary<string, Row> Rows { get; private set; }
     }
 
-    public class NoSqlTableInMemory<T> : INoSQLTableStorage<T> where T : class,  ITableEntity, new()
+    public class NoSqlTableInMemory<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
     {
+        private readonly SemaphoreSlim _lockSlim = new SemaphoreSlim(1);
 
-        private readonly ReaderWriterLockSlim _lockSlim = new ReaderWriterLockSlim();
 
-
-        public readonly SortedDictionary<string, Partition> Partitions = new SortedDictionary<string, Partition>();
+        public readonly ConcurrentDictionary<string, Partition> Partitions = new ConcurrentDictionary<string, Partition>();
 
         private IEnumerable<T> GetAllData(Func<T, bool> filter = null)
         {
-           var result = from partition in Partitions.Values from row in partition.Rows.Values select row.Deserialize<T>();
+            var result = from partition in Partitions.Values from row in partition.Rows.Values select row.Deserialize<T>();
             if (filter != null)
                 result = result.Where(filter);
 
             return result;
         }
-
-
 
         IEnumerator IEnumerable.GetEnumerator()
         {
@@ -115,21 +113,18 @@ namespace AzureStorage.Tables
             return GetAllData().GetEnumerator();
         }
 
-
-
         private Partition GetPartition(string partitionKey, bool createNewIfNotExists)
         {
-            if (Partitions.ContainsKey(partitionKey))
-                return Partitions[partitionKey];
-
             if (!createNewIfNotExists)
+            {
+                if (Partitions.TryGetValue(partitionKey, out var data))
+                    return data;
                 return null;
+            }
 
-            var partition = new Partition();
-            Partitions.Add(partitionKey, partition);
-
-            return partition;
+            return Partitions.GetOrAdd(partitionKey, new Partition());
         }
+
         private Row GetRow(string partitionKey, string rowKey)
         {
             var partition = GetPartition(partitionKey, false);
@@ -137,7 +132,7 @@ namespace AzureStorage.Tables
             if (partition == null)
                 return null;
 
-            return partition.Rows.ContainsKey(rowKey) ? partition.Rows[rowKey] : null;
+            return partition.Rows.TryGetValue(rowKey, out var data) ? data : null;
         }
 
         private bool HasElement(T item)
@@ -145,26 +140,22 @@ namespace AzureStorage.Tables
             return GetRow(item.PartitionKey, item.RowKey) != null;
         }
 
-
         private void PrivateInsert(T item)
         {
-
             var partition = GetPartition(item.PartitionKey, true);
-            partition.Rows.Add(item.RowKey, Row.Serialize(item));
-
+            partition.Rows.TryAdd(item.RowKey, Row.Serialize(item));
         }
 
-        public void Insert(T item, params int[] notLogCodes)
+        public async Task InsertAsync(T item, params int[] notLogCodes)
         {
-
-            _lockSlim.EnterWriteLock();
+            await _lockSlim.WaitAsync();
             try
             {
                 if (HasElement(item))
                 {
 
                     var message =
-                        string.Format("Can not insert. Item is already in the table. Data:{0}",AzureStorageUtils.PrintItem(item));
+                        string.Format("Can not insert. Item is already in the table. Data:{0}", AzureStorageUtils.PrintItem(item));
 
                     var exception = StorageException.TranslateException(new Exception(message),
 
@@ -172,23 +163,17 @@ namespace AzureStorage.Tables
                         {
                             HttpStatusCode = AzureStorageUtils.Conflict
                         }
-                        
-                        );
+
+                    );
 
                     throw exception;
                 }
                 PrivateInsert(item);
             }
-            finally 
+            finally
             {
-                _lockSlim.ExitWriteLock();
+                _lockSlim.Release();
             }
-        }
-
-        public Task InsertAsync(T item, params int[] notLogCodes)
-        {
-            Insert(item, notLogCodes);
-            return Task.FromResult(0);
         }
 
         public async Task InsertAsync(IEnumerable<T> items)
@@ -197,9 +182,9 @@ namespace AzureStorage.Tables
                 await InsertAsync(entity);
         }
 
-        public void InsertOrMerge(T item)
+        public async Task InsertOrMergeAsync(T item)
         {
-            _lockSlim.EnterWriteLock();
+            await _lockSlim.WaitAsync();
             try
             {
                 var row = GetRow(item.PartitionKey, item.RowKey);
@@ -211,13 +196,8 @@ namespace AzureStorage.Tables
             }
             finally
             {
-                _lockSlim.ExitWriteLock();
+                _lockSlim.Release();
             }
-        }
-
-        public Task InsertOrMergeAsync(T item)
-        {
-            return Task.Run(() => InsertOrMerge(item));
         }
 
         public async Task InsertOrMergeBatchAsync(IEnumerable<T> items)
@@ -226,9 +206,9 @@ namespace AzureStorage.Tables
                 await InsertOrMergeAsync(entity);
         }
 
-        public T Replace(string partitionKey, string rowKey, Func<T,T> replaceAction)
+        public async Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> item)
         {
-            _lockSlim.EnterWriteLock();
+            await _lockSlim.WaitAsync();
             try
             {
                 var row = GetRow(partitionKey, rowKey);
@@ -236,7 +216,7 @@ namespace AzureStorage.Tables
                     return null;
 
                 var entity = row.Deserialize<T>();
-                var result = replaceAction(entity);
+                var result = item(entity);
 
                 if (result != null)
                     row.Replace(result);
@@ -246,38 +226,13 @@ namespace AzureStorage.Tables
             }
             finally
             {
-                _lockSlim.ExitWriteLock();
+                _lockSlim.Release();
             }
         }
 
-        public Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> item)
+        public async Task<T> MergeAsync(string partitionKey, string rowKey, Func<T, T> item)
         {
-            
-            var result = Replace(partitionKey, rowKey, item);
-            return Task.FromResult(result);
-        }
-
-        public Task<T> MergeAsync(string partitionKey, string rowKey, Func<T, T> item)
-        {
-            return Task.Run(() => Merge(partitionKey, rowKey, item));
-        }
-
-        public void InsertOrReplaceBatch(IEnumerable<T> entites)
-        {
-            foreach (var entity in entites)
-                InsertOrReplace(entity);
-        }
-
-        public Task InsertOrReplaceBatchAsync(IEnumerable<T> entites)
-        {
-            InsertOrReplaceBatch(entites);
-            return Task.FromResult(0);
-        }
-
-
-        public T Merge(string partitionKey, string rowKey, Func<T, T> mergeAction)
-        {
-            _lockSlim.EnterWriteLock();
+            await _lockSlim.WaitAsync();
             try
             {
                 var row = GetRow(partitionKey, rowKey);
@@ -287,7 +242,7 @@ namespace AzureStorage.Tables
                             partitionKey, rowKey));
 
                 var entity = row.Deserialize<T>();
-                var result = mergeAction(entity);
+                var result = item(entity);
 
                 if (result != null)
                     row.Merge(result);
@@ -297,15 +252,19 @@ namespace AzureStorage.Tables
             }
             finally
             {
-                _lockSlim.ExitWriteLock();
+                _lockSlim.Release();
             }
         }
 
-
-
-        public void InsertOrReplace(T item)
+        public async Task InsertOrReplaceBatchAsync(IEnumerable<T> entites)
         {
-            _lockSlim.EnterWriteLock();
+            foreach (var entity in entites)
+                await InsertOrReplaceAsync(entity);
+        }
+
+        public async Task InsertOrReplaceAsync(T item)
+        {
+            await _lockSlim.WaitAsync();
             try
             {
                 var row = GetRow(item.PartitionKey, item.RowKey);
@@ -317,14 +276,8 @@ namespace AzureStorage.Tables
             }
             finally
             {
-                _lockSlim.ExitWriteLock();
+                _lockSlim.Release();
             }
-        }
-
-        public Task InsertOrReplaceAsync(T item)
-        {
-            InsertOrReplace(item);
-            return Task.FromResult(0);
         }
 
         public async Task InsertOrReplaceAsync(IEnumerable<T> items)
@@ -333,20 +286,15 @@ namespace AzureStorage.Tables
                 await InsertOrReplaceAsync(entity);
         }
 
-        public void Delete(T item)
-        {
-            Delete(item.PartitionKey, item.RowKey);
-        }
-
         public Task DeleteAsync(T item)
         {
-            Delete(item);
-            return Task.FromResult(0);
+            return DeleteAsync(item.PartitionKey, item.RowKey);
         }
 
-        public T Delete(string partitionKey, string rowKey)
+
+        public async Task<T> DeleteAsync(string partitionKey, string rowKey)
         {
-            _lockSlim.EnterWriteLock();
+            await _lockSlim.WaitAsync();
             try
             {
                 var row = GetRow(partitionKey, rowKey);
@@ -358,20 +306,14 @@ namespace AzureStorage.Tables
                 if (!partition.Rows.ContainsKey(rowKey))
                     return null;
 
-                var itemToDelete = partition.Rows[rowKey]; 
-                partition.Rows.Remove(rowKey);
+                var itemToDelete = partition.Rows[rowKey];
+                partition.Rows.TryRemove(rowKey, out var _);
                 return itemToDelete.Deserialize<T>();
             }
             finally
             {
-                _lockSlim.ExitWriteLock();
+                _lockSlim.Release();
             }
-        }
-
-        public Task<T> DeleteAsync(string partitionKey, string rowKey)
-        {
-            var result = Delete(partitionKey, rowKey);
-            return Task.FromResult(result);
         }
 
         public async Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey)
@@ -386,9 +328,9 @@ namespace AzureStorage.Tables
                 await DeleteAsync(entity);
         }
 
-        public Task CreateIfNotExistsAsync(T item)
+        public async Task CreateIfNotExistsAsync(T item)
         {
-            _lockSlim.EnterWriteLock();
+            await _lockSlim.WaitAsync();
             try
             {
                 var row = GetRow(item.PartitionKey, item.RowKey);
@@ -397,10 +339,8 @@ namespace AzureStorage.Tables
             }
             finally
             {
-                _lockSlim.ExitWriteLock();
+                _lockSlim.Release();
             }
-
-            return Task.FromResult(0);
         }
 
         public bool RecordExists(T item)
@@ -422,20 +362,9 @@ namespace AzureStorage.Tables
         {
             get
             {
+                var row = GetRow(partitionKey, rowKey);
 
-                _lockSlim.EnterReadLock();
-                try
-                {
-                    var row = GetRow(partitionKey, rowKey);
-                    if (row == null)
-                        return null;
-
-                    return row.Deserialize<T>();
-                }
-                finally
-                {
-                    _lockSlim.ExitReadLock();
-                }
+                return row?.Deserialize<T>();
             }
         }
 
@@ -445,7 +374,6 @@ namespace AzureStorage.Tables
         {
             return Task.Run(() => (IList<T>)GetAllData(filter).ToList());
         }
-
 
         public Task<IEnumerable<T>> GetDataAsync(string partitionKey, IEnumerable<string> rowKeys, int pieces = 15, Func<T, bool> filter = null)
         {
@@ -542,20 +470,11 @@ namespace AzureStorage.Tables
         {
             get
             {
-                _lockSlim.EnterReadLock();
-                try
-                {
-                    var partition = GetPartition(partitionKey,false);
-                    return partition?.Rows.Values.Select(row => row.Deserialize<T>()).ToArray() ?? _empty;
-                }
-                finally
-                {
-                    _lockSlim.ExitReadLock();
-                }
+                var partition = GetPartition(partitionKey, false);
+                return partition?.Rows.Values.Select(row => row.Deserialize<T>()).ToArray() ?? _empty;
             }
         }
-
-
+        
         public IEnumerable<T> GetData(Func<T, bool> filter = null)
         {
             return GetAllData(filter);
@@ -582,7 +501,7 @@ namespace AzureStorage.Tables
                 foreach (var rowKey in rowKeys)
                     result.AddRange(this.GetDataRowKeyOnlyAsync(rowKey).Result);
 
-                return (IEnumerable<T>) result;
+                return (IEnumerable<T>)result;
             });
         }
 
@@ -649,7 +568,7 @@ namespace AzureStorage.Tables
                         return Value == tableEntity.RowKey;
 
                     case QueryComparisons.GreaterThanOrEqual:
-                        return Value == tableEntity.RowKey || String.Compare(tableEntity.RowKey, Value, StringComparison.Ordinal)>0;
+                        return Value == tableEntity.RowKey || String.Compare(tableEntity.RowKey, Value, StringComparison.Ordinal) > 0;
 
                     case QueryComparisons.GreaterThan:
                         return String.Compare(tableEntity.RowKey, Value, StringComparison.Ordinal) > 0;
@@ -668,7 +587,7 @@ namespace AzureStorage.Tables
             }
         }
 
-        private readonly List<RowKeyCondition> _rowKeyConditions = new List<RowKeyCondition>(); 
+        private readonly List<RowKeyCondition> _rowKeyConditions = new List<RowKeyCondition>();
 
         private static IEnumerable<string> Split(string data, string separator)
         {
@@ -676,17 +595,17 @@ namespace AzureStorage.Tables
             return data.Split('&');
         }
 
-        private static Tuple<string, string,string> ParseParam(string data)
+        private static Tuple<string, string, string> ParseParam(string data)
         {
             var lines = data.Trim().Split(' ');
 
             var sb = new StringBuilder();
             for (var i = 2; i < lines.Length; i++)
                 if (!string.IsNullOrEmpty(lines[i]))
-                  sb.Append(lines[i] + " ");
+                    sb.Append(lines[i] + " ");
 
             var value = sb.ToString();
-            return new Tuple<string, string, string>(lines[0], lines[1], value.Substring(1, value.Length-3));
+            return new Tuple<string, string, string>(lines[0], lines[1], value.Substring(1, value.Length - 3));
         }
 
         public WhereInMemory(string data)
