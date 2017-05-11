@@ -56,7 +56,12 @@ namespace AzureStorage
 
         Task DeleteAsync(IEnumerable<T> items);
 
-        Task CreateIfNotExistsAsync(T item);
+        /// <summary>
+        /// Creates record if not existed before
+        /// </summary>
+        /// <param name="item"></param>
+        /// <returns>true if created, false if existed before</returns>
+        Task<bool> CreateIfNotExistsAsync(T item);
 
         bool RecordExists(T item);
 

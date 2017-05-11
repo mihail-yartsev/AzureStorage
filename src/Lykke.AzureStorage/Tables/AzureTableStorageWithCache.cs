@@ -120,10 +120,12 @@ namespace AzureStorage.Tables
             await _cache.DeleteAsync(items);
         }
 
-        public async Task CreateIfNotExistsAsync(T item)
+        public async Task<bool> CreateIfNotExistsAsync(T item)
         {
-            await _table.CreateIfNotExistsAsync(item);
+            var res = await _table.CreateIfNotExistsAsync(item);
             await _cache.CreateIfNotExistsAsync(item);
+
+            return res;
         }
 
         public bool RecordExists(T item)

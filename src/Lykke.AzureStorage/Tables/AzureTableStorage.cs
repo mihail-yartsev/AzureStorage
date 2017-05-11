@@ -319,17 +319,20 @@ namespace AzureStorage.Tables
             }
         }
 
-        public virtual async Task CreateIfNotExistsAsync(T item)
+        public virtual async Task<bool> CreateIfNotExistsAsync(T item)
         {
             try
             {
                 await InsertAsync(item, Conflict);
+                return true;
             }
             catch (StorageException e)
             {
                 if (e.RequestInformation.HttpStatusCode != Conflict)
                     throw;
             }
+
+            return false;
         }
 
         public virtual bool RecordExists(T item)

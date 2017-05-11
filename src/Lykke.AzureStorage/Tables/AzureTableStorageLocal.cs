@@ -113,9 +113,10 @@ namespace AzureStorage.Tables
                 await DeleteAsync(entity);
         }
 
-        public Task CreateIfNotExistsAsync(T item)
+        public async Task<bool> CreateIfNotExistsAsync(T item)
         {
-            return InsertAsync(item);
+            await InsertAsync(item);
+            return true;
         }
 
         public bool RecordExists(T item)

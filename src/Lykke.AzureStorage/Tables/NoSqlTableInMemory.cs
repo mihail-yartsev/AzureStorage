@@ -328,14 +328,19 @@ namespace AzureStorage.Tables
                 await DeleteAsync(entity);
         }
 
-        public async Task CreateIfNotExistsAsync(T item)
+        public async Task<bool> CreateIfNotExistsAsync(T item)
         {
             await _lockSlim.WaitAsync();
             try
             {
                 var row = GetRow(item.PartitionKey, item.RowKey);
                 if (row == null)
+                {
                     PrivateInsert(item);
+                    return true;
+                }
+
+                return false;
             }
             finally
             {
