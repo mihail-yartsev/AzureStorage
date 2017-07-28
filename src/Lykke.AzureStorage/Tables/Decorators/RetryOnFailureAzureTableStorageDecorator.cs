@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Lykke.AzureStorage;
+using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace AzureStorage.Tables.Decorators
@@ -42,7 +45,19 @@ namespace AzureStorage.Tables.Decorators
 
             _onModificationsRetryCount = onModificationsRetryCount;
             _onGettingRetryCount = onGettingRetryCount;
-            _retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
+            _retryService = new RetrySrvice(e =>
+            {
+                var storageException = e as StorageException;
+                var noRetryStatusCodes = new[]
+                {
+                    HttpStatusCode.Conflict,
+                    HttpStatusCode.BadRequest
+                };
+
+                return storageException != null && noRetryStatusCodes.Contains((HttpStatusCode)storageException.RequestInformation.HttpStatusCode)
+                    ? RetrySrvice.ExceptionFilterResult.ThrowImmediately
+                    : RetrySrvice.ExceptionFilterResult.ThrowAfterRetries;
+            });
         }
 
         public IEnumerator<TEntity> GetEnumerator() => _retryService.Retry(_impl.GetEnumerator, _onGettingRetryCount);
