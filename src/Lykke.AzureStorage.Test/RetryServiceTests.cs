@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace Lykke.AzureStorage.Test
 {
     [TestClass]
-    public class RetryUtilsTests
+    public class RetryServiceTests
     {
         #region Success
 
@@ -14,9 +14,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
-            
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
+
             // Act
-            RetryUtils.Retry(() => ++executionsCount, 10);
+            retryService.Retry(() => ++executionsCount, 10);
 
 
             // Assert
@@ -28,9 +29,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act
-            await RetryUtils.RetryAsync(async () =>
+            await retryService.RetryAsync(async () =>
             {
                 ++executionsCount;
                 await Task.FromResult(0);
@@ -45,9 +47,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act
-            await RetryUtils.RetryAsync(async () =>
+            await retryService.RetryAsync(async () =>
             {
                 ++executionsCount;
                 return await Task.FromResult(0);
@@ -67,9 +70,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act/Assert
-            Assert.ThrowsException<InvalidOperationException>(() => RetryUtils.Retry<int>(() =>
+            Assert.ThrowsException<InvalidOperationException>(() => retryService.Retry<int>(() =>
             {
                 ++executionsCount;
 
@@ -83,9 +87,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act
-            var retryTask = RetryUtils.RetryAsync(async () =>
+            var retryTask = retryService.RetryAsync(async () =>
             {
                 ++executionsCount;
 
@@ -104,9 +109,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act
-            var retryTask = RetryUtils.RetryAsync(async () =>
+            var retryTask = retryService.RetryAsync(async () =>
             {
                 ++executionsCount;
 
@@ -128,9 +134,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act/Assert
-            var result = RetryUtils.Retry<int>(() =>
+            var result = retryService.Retry(() =>
             {
                 ++executionsCount;
 
@@ -151,9 +158,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act
-            await RetryUtils.RetryAsync(async () =>
+            await retryService.RetryAsync(async () =>
             {
                 ++executionsCount;
 
@@ -175,9 +183,10 @@ namespace Lykke.AzureStorage.Test
         {
             // Arrange
             var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowAfterRetries);
 
             // Act
-            var result = await RetryUtils.RetryAsync(async () =>
+            var result = await retryService.RetryAsync(async () =>
             {
                 ++executionsCount;
 
@@ -194,6 +203,70 @@ namespace Lykke.AzureStorage.Test
             Assert.AreEqual(4, result);
         }
 
+
+        #endregion
+
+
+        #region Throw immediately afteer failure
+
+        [TestMethod]
+        public void Test_that_Retry_executes_action_once_and_throws_when_it_fails_and_filterreturns_ThrowImmediately()
+        {
+            // Arrange
+            var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowImmediately);
+
+            // Act/Assert
+            Assert.ThrowsException<InvalidOperationException>(() => retryService.Retry<int>(() =>
+            {
+                ++executionsCount;
+
+                throw new InvalidOperationException();
+            }, 10));
+            Assert.AreEqual(1, executionsCount);
+        }
+
+        [TestMethod]
+        public async Task Test_that_RetryAsync_executes_action_once_and_throws_when_it_fails_and_filterreturns_ThrowImmediately()
+        {
+            // Arrange
+            var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowImmediately);
+
+            // Act
+            var retryTask = retryService.RetryAsync(async () =>
+            {
+                ++executionsCount;
+
+                await Task.FromResult(0);
+
+                throw new InvalidOperationException();
+            }, 1);
+
+            // Assert
+            await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => retryTask);
+            Assert.AreEqual(1, executionsCount);
+        }
+
+        [TestMethod]
+        public async Task Test_that_RetryAsyncWithResult_executes_action_once_and_throws_when_it_fails_and_filterreturns_ThrowImmediately()
+        {
+            // Arrange
+            var executionsCount = 0;
+            var retryService = new RetrySrvice(e => RetrySrvice.ExceptionFilterResult.ThrowImmediately);
+
+            // Act
+            var retryTask = retryService.RetryAsync(async () =>
+            {
+                ++executionsCount;
+
+                return await Task.FromException<int>(new InvalidOperationException());
+            }, 1);
+
+            // Assert
+            await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => retryTask);
+            Assert.AreEqual(1, executionsCount);
+        }
 
         #endregion
     }
