@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace Lykke.AzureStorage
 {
-    internal class RetrySrvice
+    internal class RetryService
     {
         public enum ExceptionFilterResult
         {
@@ -11,10 +11,23 @@ namespace Lykke.AzureStorage
             ThrowAfterRetries
         }
 
+        private readonly TimeSpan _retryDelay;
         private readonly Func<Exception, ExceptionFilterResult> _exceptionFilter;
 
-        public RetrySrvice(Func<Exception, ExceptionFilterResult> exceptionFilter)
+        public RetryService(TimeSpan retryDelay) :
+            this(retryDelay, e => ExceptionFilterResult.ThrowAfterRetries)
+
         {
+        }
+
+        public RetryService(Func<Exception, ExceptionFilterResult> exceptionFilter) :
+            this(TimeSpan.Zero, exceptionFilter)
+        {
+        }
+
+        public RetryService(TimeSpan retryDelay, Func<Exception, ExceptionFilterResult> exceptionFilter)
+        {
+            _retryDelay = retryDelay;
             _exceptionFilter = exceptionFilter;
         }
 
@@ -25,7 +38,7 @@ namespace Lykke.AzureStorage
                 throw new ArgumentOutOfRangeException(nameof(retryCount), retryCount, "Value should be greater than 0");
             }
 
-            var i = 0;
+            var remainingRetries = retryCount;
 
             while (true)
             {
@@ -41,7 +54,7 @@ namespace Lykke.AzureStorage
                             throw;
 
                         case ExceptionFilterResult.ThrowAfterRetries:
-                            if (++i >= retryCount)
+                            if (--remainingRetries == 0)
                             {
                                 throw;
                             }
@@ -50,6 +63,8 @@ namespace Lykke.AzureStorage
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
+
+                    Task.Delay(_retryDelay).Wait();
                 }
             }
         }
@@ -61,7 +76,7 @@ namespace Lykke.AzureStorage
                 throw new ArgumentOutOfRangeException(nameof(retryCount), retryCount, "Value should be greater than 0");
             }
 
-            var i = 0;
+            var remainingRetries = retryCount;
 
             while (true)
             {
@@ -79,7 +94,7 @@ namespace Lykke.AzureStorage
                             throw;
 
                         case ExceptionFilterResult.ThrowAfterRetries:
-                            if (++i >= retryCount)
+                            if (--remainingRetries == 0)
                             {
                                 throw;
                             }
@@ -88,6 +103,8 @@ namespace Lykke.AzureStorage
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
+
+                    await Task.Delay(_retryDelay);
                 }
             }
         }
@@ -99,7 +116,7 @@ namespace Lykke.AzureStorage
                 throw new ArgumentOutOfRangeException(nameof(retryCount), retryCount, "Value should be greater than 0");
             }
 
-            var i = 0;
+            var remainingRetries = retryCount;
 
             while (true)
             {
@@ -115,7 +132,7 @@ namespace Lykke.AzureStorage
                             throw;
 
                         case ExceptionFilterResult.ThrowAfterRetries:
-                            if (++i >= retryCount)
+                            if (--remainingRetries == 0)
                             {
                                 throw;
                             }
@@ -124,6 +141,8 @@ namespace Lykke.AzureStorage
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
+
+                    await Task.Delay(_retryDelay);
                 }
             }
         }
