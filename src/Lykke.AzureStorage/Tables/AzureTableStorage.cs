@@ -91,7 +91,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertAsync batch", AzureStorageUtils.PrintItems(items), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(InsertAsync),
+                        AzureStorageUtils.PrintItems(items),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertAsync batch", AzureStorageUtils.PrintItems(items), ex);
                 throw;
             }
         }
@@ -105,7 +112,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrMerge item", AzureStorageUtils.PrintItem(item), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(InsertOrMergeAsync),
+                        AzureStorageUtils.PrintItem(item),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrMerge item", AzureStorageUtils.PrintItem(item), ex);
                 throw;
             }
         }
@@ -128,7 +142,15 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrMergeBatchAsync", AzureStorageUtils.PrintItems(items), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(InsertOrMergeBatchAsync),
+                        AzureStorageUtils.PrintItems(items),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync(
+                        "Table storage: " + _tableName, nameof(InsertOrMergeBatchAsync), AzureStorageUtils.PrintItems(items), ex);
                 throw;
             }
         }
@@ -167,7 +189,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Replace item", AzureStorageUtils.PrintItem(itm), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(ReplaceAsync),
+                        AzureStorageUtils.PrintItem(itm),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Replace item", AzureStorageUtils.PrintItem(itm), ex);
                 throw;
             }
         }
@@ -206,7 +235,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Replace item", AzureStorageUtils.PrintItem(itm), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(MergeAsync),
+                        AzureStorageUtils.PrintItem(itm),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, nameof(MergeAsync), AzureStorageUtils.PrintItem(itm), ex);
                 throw;
             }
         }
@@ -231,7 +267,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrReplace item", AzureStorageUtils.PrintItem(item), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(InsertOrReplaceAsync),
+                        AzureStorageUtils.PrintItem(item),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrReplace item", AzureStorageUtils.PrintItem(item), ex);
                 throw;
             }
         }
@@ -254,7 +297,15 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrReplaceAsync batch", AzureStorageUtils.PrintItems(items), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(InsertOrReplaceAsync),
+                        AzureStorageUtils.PrintItems(items),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync(
+                        "Table storage: " + _tableName, "InsertOrReplaceAsync batch", AzureStorageUtils.PrintItems(items), ex);
                 throw;
             }
         }
@@ -268,7 +319,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Delete item", AzureStorageUtils.PrintItem(item), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(DeleteAsync),
+                        AzureStorageUtils.PrintItem(item),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Delete item", AzureStorageUtils.PrintItem(item), ex);
                 throw;
             }
         }
@@ -314,7 +372,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "DeleteAsync batch", AzureStorageUtils.PrintItems(items), ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(DeleteAsync),
+                        AzureStorageUtils.PrintItems(items),
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "DeleteAsync batch", AzureStorageUtils.PrintItems(items), ex);
                 throw;
             }
         }
@@ -456,7 +521,15 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Get item async by partId and rowId", "partitionId=" + partition + "; rowId=" + row, ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(GetDataAsync),
+                        "partitionId=" + partition + "; rowId=" + row,
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync(
+                        "Table storage: " + _tableName, "Get item async by partId and rowId", "partitionId=" + partition + "; rowId=" + row, ex);
                 throw;
             }
         }
@@ -605,9 +678,16 @@ namespace AzureStorage.Tables
             {
                 await table.CreateIfNotExistsAsync();
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "unknown case", exception);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        nameof(CreateTableIfNotExists),
+                        "unknown case",
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "unknown case", ex);
                 throw;
             }
 
@@ -639,7 +719,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        processName,
+                        rangeQuery.FilterString ?? "[null]",
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
                 throw;
             }
         }
@@ -671,7 +758,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        processName,
+                        rangeQuery.FilterString ?? "[null]",
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
                 throw;
             }
         }
@@ -699,7 +793,14 @@ namespace AzureStorage.Tables
             }
             catch (Exception ex)
             {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
+                if (ex is TaskCanceledException)
+                    await _log.WriteWarningAsync(
+                        "Table storage: " + _tableName,
+                        processName,
+                        rangeQuery.FilterString ?? "[null]",
+                        ex.GetBaseException().Message);
+                else
+                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
                 throw;
             }
         }
