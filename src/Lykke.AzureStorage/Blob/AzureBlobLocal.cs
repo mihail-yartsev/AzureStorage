@@ -135,5 +135,10 @@ namespace AzureStorage.Blob
         {
             throw new NotImplementedException();
         }
+
+        public Task<bool> CreateContainerIfNotExistsAsync(string container)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

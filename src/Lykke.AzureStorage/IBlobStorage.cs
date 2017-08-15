@@ -7,21 +7,19 @@ namespace AzureStorage
 {
     public interface IBlobStorage
     {
-        /// <summary>
-        ///     Сохранить двоичный поток в контейнер
-        /// </summary>
-        /// <param name="container">Имя контейнера</param>
-        /// <param name="key">Ключ</param>
-        /// <param name="bloblStream">Поток</param>
+        /// <summary>Save binary stream to container.</summary>
+        /// <param name="container">Container name</param>
+        /// <param name="key">Key</param>
+        /// <param name="bloblStream">Binary stream</param>
         Task<string> SaveBlobAsync(string container, string key, Stream bloblStream, bool anonymousAccess = false);
 
         Task SaveBlobAsync(string container, string key, byte[] blob);
 
         Task<bool> HasBlobAsync(string container, string key);
 
-        /// <summary>
-        ///     Returns datetime of latest modification among all blobs
-        /// </summary>
+        Task<bool> CreateContainerIfNotExistsAsync(string container);
+
+        /// <summary>Returns datetime of latest modification among all blobs</summary>
         Task<DateTime> GetBlobsLastModifiedAsync(string container);
 
         Task<Stream> GetAsync(string blobContainer, string key);
@@ -30,7 +28,6 @@ namespace AzureStorage
         string GetBlobUrl(string container, string key);
 
         Task<IEnumerable<string>> FindNamesByPrefixAsync(string container, string prefix);
-
 
         Task<IEnumerable<string>> GetListOfBlobsAsync(string container);
         Task<IEnumerable<string>> GetListOfBlobKeysAsync(string container);

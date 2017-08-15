@@ -138,5 +138,16 @@ namespace AzureStorage.Blob
             DelBlob(blobContainer, key);
             return Task.FromResult(0);
         }
+
+        public Task<bool> CreateContainerIfNotExistsAsync(string container)
+        {
+            if (!_blobs.ContainsKey(container))
+            {
+                _blobs.Add(container, new Dictionary<string, byte[]>());
+                return Task.FromResult(true);
+            }
+
+            return Task.FromResult(false);
+        }
     }
 }
