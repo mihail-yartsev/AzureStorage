@@ -11,6 +11,7 @@ using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage.Table.Protocol;
 using System.Threading;
+using AzureStorage.Tables.Decorators;
 using Lykke.AzureStorage;
 using Lykke.Common.Async;
 
@@ -28,13 +29,23 @@ namespace AzureStorage.Tables
         private readonly CloudStorageAccount _cloudStorageAccount;
         private bool _tableCreated;
 
-
-        public AzureTableStorage(string connectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null)
+        [Obsolete("Have to use the AzureTableStorage.Create method with lambda for getting ConnectionString", false)]
+        public AzureTableStorage(string connectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null) 
         {
             _tableName = tableName;
             _log = log ?? EmptyLog.Instance;
             _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
+
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
+        }
+
+        public static INoSQLTableStorage<T> Create(Func<string> getConnectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null)
+        {
+            return new ReloadingConnectionStringOnFailureAzureTableStorageDecorator<T>( 
+#pragma warning disable 618
+                () => new AzureTableStorage<T>(getConnectionString(), tableName, log, maxExecutionTimeout)
+#pragma warning restore 618
+            );
         }
 
         private TableRequestOptions GetRequestOptions()
@@ -47,7 +58,7 @@ namespace AzureStorage.Tables
 
         public async Task DoBatchAsync(TableBatchOperation batch)
         {
-            CloudTable table = await GetTable();
+            var table = await GetTable();
             await table.ExecuteBatchAsync(batch, GetRequestOptions(), null);
         }
 
@@ -698,9 +709,7 @@ namespace AzureStorage.Tables
 
         private async Task<CloudTable> GetTable()
         {
-            if (_tableCreated)
-                return GetTableReference();
-            return await CreateTableIfNotExists();
+            return _tableCreated ? GetTableReference() : await CreateTableIfNotExists();
         }
 
         private async Task ExecuteQueryAsync(string processName, TableQuery<T> rangeQuery, Func<T, bool> filter,

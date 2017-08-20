@@ -10,10 +10,11 @@ using System.Threading.Tasks;
 
 namespace Lykke.AzureStorage.Test
 {
-    internal class TestEntity : TableEntity
+    public class TestEntity : TableEntity
     {
         public string FakeField { get; set; }
     }
+
     [TestClass]
     public class AzureTableStorageTest
     {
