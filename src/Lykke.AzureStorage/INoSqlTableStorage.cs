@@ -33,7 +33,7 @@ namespace AzureStorage
 
         Task<T> MergeAsync(string partitionKey, string rowKey, Func<T, T> item);
 
-        Task InsertOrReplaceBatchAsync(IEnumerable<T> entites);
+        Task InsertOrReplaceBatchAsync(IEnumerable<T> entities);
 
 
         /// <summary>
