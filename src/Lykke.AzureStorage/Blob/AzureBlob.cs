@@ -216,5 +216,29 @@ namespace AzureStorage.Blob
                 return ms;
             }
         }
+
+        public async Task<string> GetMetadataAsync(string container, string key, string metaDataKey)
+        {
+            var metadata = await GetMetadataAsync(container, key);
+            if ((metadata?.Count ?? 0) == 0 || !metadata.ContainsKey(metaDataKey))
+                return null;
+
+            return metadata[metaDataKey];
+        }
+
+        public async Task<IDictionary<string, string>> GetMetadataAsync(string container, string key)
+        {
+            if (string.IsNullOrWhiteSpace(container) || string.IsNullOrWhiteSpace(key))
+                return new Dictionary<string, string>();
+
+            if (!await HasBlobAsync(container, key))
+                return new Dictionary<string, string>();
+
+            var containerRef = GetContainerReference(container);
+            var blockBlob = containerRef.GetBlockBlobReference(key);
+            await blockBlob.FetchAttributesAsync();
+
+            return blockBlob.Metadata;
+        }
     }
 }
