@@ -219,20 +219,11 @@ namespace AzureStorage.Blob
 
         public async Task<string> GetMetadata(string container, string key, string metaDataKey)
         {
-            if (string.IsNullOrWhiteSpace(container) || string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(metaDataKey))
+            var metadata = await GetMetadata(container, key);
+            if ((metadata?.Count ?? 0) == 0 || !metadata.ContainsKey(metaDataKey))
                 return null;
 
-            if (!await HasBlobAsync(container, key))
-                return null;
-
-            var containerRef = GetContainerReference(container);
-            var blockBlob = containerRef.GetBlockBlobReference(key);
-            await blockBlob.FetchAttributesAsync();
-
-            if (!blockBlob.Metadata.ContainsKey(metaDataKey))
-                return null;
-
-            return blockBlob.Metadata[metaDataKey];
+            return metadata[metaDataKey];
         }
 
         public async Task<IDictionary<string, string>> GetMetadata(string container, string key)
