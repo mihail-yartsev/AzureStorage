@@ -217,16 +217,16 @@ namespace AzureStorage.Blob
             }
         }
 
-        public async Task<string> GetMetadata(string container, string key, string metaDataKey)
+        public async Task<string> GetMetadataAsync(string container, string key, string metaDataKey)
         {
-            var metadata = await GetMetadata(container, key);
+            var metadata = await GetMetadataAsync(container, key);
             if ((metadata?.Count ?? 0) == 0 || !metadata.ContainsKey(metaDataKey))
                 return null;
 
             return metadata[metaDataKey];
         }
 
-        public async Task<IDictionary<string, string>> GetMetadata(string container, string key)
+        public async Task<IDictionary<string, string>> GetMetadataAsync(string container, string key)
         {
             if (string.IsNullOrWhiteSpace(container) || string.IsNullOrWhiteSpace(key))
                 return new Dictionary<string, string>();

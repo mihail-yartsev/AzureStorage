@@ -35,5 +35,8 @@ namespace AzureStorage
         Task DelBlobAsync(string blobContainer, string key);
 
         Stream this[string container, string key] { get; }
+
+        Task<string> GetMetadataAsync(string container, string key, string metaDataKey);
+        Task<IDictionary<string, string>> GetMetadataAsync(string container, string key);
     }
 }

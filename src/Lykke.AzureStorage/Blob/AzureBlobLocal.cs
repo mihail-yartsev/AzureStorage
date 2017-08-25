@@ -140,5 +140,15 @@ namespace AzureStorage.Blob
         {
             throw new NotImplementedException();
         }
+
+        public async Task<string> GetMetadataAsync(string container, string key, string metaDataKey)
+        {
+            return null;
+        }
+
+        public async Task<IDictionary<string, string>> GetMetadataAsync(string container, string key)
+        {
+            return new Dictionary<string, string>();
+        }
     }
 }
