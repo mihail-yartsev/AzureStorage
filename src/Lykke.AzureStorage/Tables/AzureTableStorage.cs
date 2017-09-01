@@ -4,11 +4,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using AzureStorage.Tables.Decorators;
+
 using Common;
 using Common.Extensions;
 using Common.Log;
 
 using Lykke.AzureStorage;
+using Lykke.SettingsReader;
 
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
@@ -27,6 +30,7 @@ namespace AzureStorage.Tables
         private readonly CloudStorageAccount _cloudStorageAccount;
         private bool _tableCreated;
 
+        [Obsolete("Have to use the Azure Table Storage.Create method to reloading ConnectionString on access failure.", false)]
         public AzureTableStorage(string connectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null) 
         {
             _tableName = tableName;
@@ -34,6 +38,15 @@ namespace AzureStorage.Tables
             _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
 
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
+        }
+
+        public static INoSQLTableStorage<T> Create(IReloadingManager<string> connectionStringManager, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null)
+        {
+            return new ReloadingConnectionStringOnFailureAzureTableStorageDecorator<T>(
+#pragma warning disable 618
+                async () => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, log, maxExecutionTimeout)
+#pragma warning restore 618
+            );
         }
 
         private TableRequestOptions GetRequestOptions()
