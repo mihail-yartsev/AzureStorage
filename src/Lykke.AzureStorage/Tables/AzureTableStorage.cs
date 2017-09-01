@@ -2,18 +2,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
+
 using Common;
 using Common.Extensions;
 using Common.Log;
+
+using Lykke.AzureStorage;
+
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
-using Microsoft.WindowsAzure.Storage.Table.Protocol;
-using System.Threading;
-using AzureStorage.Tables.Decorators;
-using Lykke.AzureStorage;
-using Lykke.Common.Async;
 
 namespace AzureStorage.Tables
 {
@@ -29,7 +27,6 @@ namespace AzureStorage.Tables
         private readonly CloudStorageAccount _cloudStorageAccount;
         private bool _tableCreated;
 
-        [Obsolete("Have to use the AzureTableStorage.Create method with lambda for getting ConnectionString", false)]
         public AzureTableStorage(string connectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null) 
         {
             _tableName = tableName;
@@ -37,15 +34,6 @@ namespace AzureStorage.Tables
             _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
 
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
-        }
-
-        public static INoSQLTableStorage<T> Create(Func<string> getConnectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null)
-        {
-            return new ReloadingConnectionStringOnFailureAzureTableStorageDecorator<T>( 
-#pragma warning disable 618
-                () => new AzureTableStorage<T>(getConnectionString(), tableName, log, maxExecutionTimeout)
-#pragma warning restore 618
-            );
         }
 
         private TableRequestOptions GetRequestOptions()

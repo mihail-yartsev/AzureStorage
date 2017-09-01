@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.WindowsAzure.Storage;
@@ -15,41 +16,68 @@ namespace AzureStorage.Tables.Decorators
     public class ReloadingConnectionStringOnFailureAzureTableStorageDecorator<TEntity> : INoSQLTableStorage<TEntity> 
         where TEntity : ITableEntity, new()
     {
-        private readonly Func<INoSQLTableStorage<TEntity>> _makeStorage;
-        private INoSQLTableStorage<TEntity> _currentTableStorage;
+        private readonly Func<Task<INoSQLTableStorage<TEntity>>> _makeStorage;
 
-        public ReloadingConnectionStringOnFailureAzureTableStorageDecorator(Func<INoSQLTableStorage<TEntity>> makeStorage)
+        public ReloadingConnectionStringOnFailureAzureTableStorageDecorator(Func<Task<INoSQLTableStorage<TEntity>>> makeStorage)
         {
             _makeStorage = makeStorage;
         }
 
         private bool CheckException(Exception ex)
         {
-            var storageException = ex as StorageException;
-            if (storageException == null)
+            if (ex is StorageException storageException)
             {
-                return false;
+                var statusCode = (HttpStatusCode)storageException.RequestInformation.HttpStatusCode;
+                return statusCode == HttpStatusCode.Forbidden;
             }
 
-            var statusCode = (HttpStatusCode)storageException.RequestInformation.HttpStatusCode;
-            return statusCode == HttpStatusCode.Forbidden;
+            return false;
         }
 
-        private INoSQLTableStorage<TEntity> GetStorage(bool reload = false)
+        private readonly ReaderWriterLockSlim _sync = new ReaderWriterLockSlim();
+        private Task<INoSQLTableStorage<TEntity>> _currentTask;
+
+        private Task<INoSQLTableStorage<TEntity>> GetStorageAsync(bool reload = false)
         {
-            if (reload || _currentTableStorage == null)
+            bool CheckCurrentTask() => _currentTask != null && !(_currentTask.IsCompleted && reload);
+
+            try
             {
-                _currentTableStorage = _makeStorage();
+                _sync.EnterReadLock();
+
+                if (CheckCurrentTask())
+                {
+                    return _currentTask;
+                }
+            }
+            finally
+            {
+                _sync.ExitReadLock();
             }
 
-            return _currentTableStorage;
+            try
+            {
+                _sync.EnterWriteLock();
+
+                // double check
+                if (CheckCurrentTask())
+                {
+                    return _currentTask;
+                }
+
+                return _currentTask = _makeStorage();
+            }
+            finally
+            {
+                _sync.ExitWriteLock();
+            }
         }
 
         private T Wrap<T>(Func<INoSQLTableStorage<TEntity>, T> func)
         {
             try
             {
-                return func(GetStorage());
+                return func(GetStorageAsync().Result);
             }
             catch (Exception ex)
             {
@@ -59,14 +87,14 @@ namespace AzureStorage.Tables.Decorators
                 }
             }
 
-            return func(GetStorage(reload: true));
+            return func(GetStorageAsync(reload: true).Result);
         }
 
         private async Task WrapAsync(Func<INoSQLTableStorage<TEntity>, Task> func)
         {
             try
             {
-                await func(GetStorage());
+                await func(await GetStorageAsync());
                 return;
             }
             catch (Exception ex)
@@ -77,14 +105,14 @@ namespace AzureStorage.Tables.Decorators
                 }
             }
 
-            await func(GetStorage(reload: true));
+            await func(await GetStorageAsync(reload: true));
         }
 
         private async Task<T> WrapAsync<T>(Func<INoSQLTableStorage<TEntity>, Task<T>> func)
         {
             try
             {
-                return await func(GetStorage());
+                return await func(await GetStorageAsync());
             }
             catch (Exception ex)
             {
@@ -94,7 +122,7 @@ namespace AzureStorage.Tables.Decorators
                 }
             }
 
-            return await func(GetStorage(reload: true));
+            return await func(await GetStorageAsync(reload: true));
         }
 
         public IEnumerator<TEntity> GetEnumerator() => Wrap(x => x.GetEnumerator());
