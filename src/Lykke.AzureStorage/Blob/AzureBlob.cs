@@ -2,9 +2,14 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
+
+using AzureStorage.Blob.Decorators;
+
 using Common.Extensions;
+
+using Lykke.SettingsReader;
+
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 
@@ -15,10 +20,20 @@ namespace AzureStorage.Blob
         private readonly CloudStorageAccount _storageAccount;
         private readonly TimeSpan _maxExecutionTime;
 
+        [Obsolete("Have to use the Azure Table Storage.Create method to reloading ConnectionString on access failure.", false)]
         public AzureBlobStorage(string connectionString, TimeSpan? maxExecutionTimeout = null)
         {
             _storageAccount = CloudStorageAccount.Parse(connectionString);
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
+        }
+
+        public static IBlobStorage Create(IReloadingManager<string> connectionStringManager, TimeSpan? maxExecutionTimeout = null)
+        {
+            return new ReloadingConnectionStringOnFailureAzureBlobDecorator(
+#pragma warning disable 618
+                async () => new AzureBlobStorage(await connectionStringManager.Reload(), maxExecutionTimeout)
+#pragma warning restore 618
+            );
         }
 
         private CloudBlobContainer GetContainerReference(string container)

@@ -30,7 +30,7 @@ namespace AzureStorage.Tables
         private readonly CloudStorageAccount _cloudStorageAccount;
         private bool _tableCreated;
 
-        [Obsolete("Have to use the Azure Table Storage.Create method to reloading ConnectionString on access failure.", false)]
+        [Obsolete("Have to use the AzureTableStorage.Create method to reloading ConnectionString on access failure.", false)]
         public AzureTableStorage(string connectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null) 
         {
             _tableName = tableName;
