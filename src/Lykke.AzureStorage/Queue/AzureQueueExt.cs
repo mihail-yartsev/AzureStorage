@@ -2,8 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+
+using AzureStorage.Queue.Decorators;
+
+using Lykke.SettingsReader;
+
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Queue;
+
 using Newtonsoft.Json;
 
 namespace AzureStorage.Queue
@@ -16,12 +22,22 @@ namespace AzureStorage.Queue
         private bool _queueCreated;
         private readonly TimeSpan _maxExecutionTime;
 
+        [Obsolete("Have to use the Azure Table Storage.Create method to reloading ConnectionString on access failure.", false)]
         public AzureQueueExt(string conectionString, string queueName, TimeSpan? maxExecutionTimeout = null)
         {
             queueName = queueName.ToLower();
             _storageAccount = CloudStorageAccount.Parse(conectionString);
             _queueName = queueName;
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
+        }
+
+        public static IQueueExt Create(IReloadingManager<string> connectionStringManager, string queueName, TimeSpan? maxExecutionTimeout = null)
+        {
+            return new ReloadingConnectionStringOnFailureAzureQueueDecorator(
+#pragma warning disable 618
+                async () => new AzureQueueExt(await connectionStringManager.Reload(), queueName, maxExecutionTimeout)
+#pragma warning restore 618
+            );
         }
 
         private async Task<CloudQueue> GetQueue()
