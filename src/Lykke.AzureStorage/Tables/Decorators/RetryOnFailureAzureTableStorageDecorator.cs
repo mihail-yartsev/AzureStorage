@@ -29,7 +29,26 @@ namespace AzureStorage.Tables.Decorators
         private readonly int _onGettingRetryCount;
         private readonly RetryService _retryService;
 
-        public RetryOnFailureAzureTableStorageDecorator(INoSQLTableStorage<TEntity> impl, int onModificationsRetryCount = 10, int onGettingRetryCount = 1, TimeSpan? retryDelay = null)
+        /// <summary>
+        /// Creates decorator, which adds retries functionality to atomic operations of <see cref="INoSQLTableStorage{T}"/> implementation
+        /// </summary>
+        /// <remarks>
+        /// Methods without retries:
+        /// - GetDataByChunksAsync
+        /// - ScanDataAsync
+        /// - FirstOrNullViaScanAsync
+        /// - GetDataRowKeysOnlyAsync
+        /// - ExecuteAsync
+        /// </remarks>
+        /// <param name="impl"><see cref="INoSQLTableStorage{T}"/> instance to which actual work will be delegated</param>
+        /// <param name="onModificationsRetryCount">Retries count for write operations</param>
+        /// <param name="onGettingRetryCount">Retries count for read operations</param>
+        /// <param name="retryDelay">Delay before next retry. Default value is <see cref="TimeSpan.Zero"/></param>
+        public RetryOnFailureAzureTableStorageDecorator(
+            INoSQLTableStorage<TEntity> impl, 
+            int onModificationsRetryCount = 10, 
+            int onGettingRetryCount = 1, 
+            TimeSpan? retryDelay = null)
         {
             _impl = impl ?? throw new ArgumentNullException(nameof(impl));
 
