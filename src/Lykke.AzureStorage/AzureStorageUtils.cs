@@ -542,7 +542,7 @@ namespace AzureStorage
             }
         }
 
-        public delegate string GenerateRowKey<in T>(T entity, int itemInBatchNumber, int retryNumber);
+        public delegate string GenerateRowKey<in T>(T entity, int retryNumber, int batchItemNumber);
 
         /// <summary>
         /// Generates unique row key for each entity in the <paramref name="entitiesBatch"/> before insert, 
