@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
@@ -541,6 +542,58 @@ namespace AzureStorage
             }
         }
 
+        public delegate string GenerateRowKey<in T>(T entity, int retryNumber, int batchItemNumber);
+
+        /// <summary>
+        /// Generates unique row key for each entity in the <paramref name="entitiesBatch"/> before insert, 
+        /// using <paramref name="generateRowKey"/>. If conflict accurs on insert, 
+        /// increments retries counter up to <paramref name="maxRetriesCount"/> and regenerates all row keys
+        /// </summary>
+        public static async Task InsertBatchAndGenerateRowKeyAsync<T>(
+            this INoSQLTableStorage<T> storage,
+            IReadOnlyList<T> entitiesBatch,
+            GenerateRowKey<T> generateRowKey,
+            int maxRetriesCount = 1000)
+            
+            where T : ITableEntity, new()
+        {
+            var retryNumber = 0;
+
+            UpdateRowKeys(entitiesBatch, generateRowKey, retryNumber);
+
+            while (true)
+            {
+                ++retryNumber;
+
+                try
+                {
+                    await storage.InsertAsync(entitiesBatch);
+                    return;
+                }
+                catch (AggregateException ex)
+                    when ((ex.InnerExceptions[0] as StorageException)?.RequestInformation?.HttpStatusCode ==
+                          (int)HttpStatusCode.Conflict && retryNumber <= maxRetriesCount)
+                {
+                    UpdateRowKeys(entitiesBatch, generateRowKey, retryNumber);
+                }
+                catch (StorageException ex)
+                    when (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict && retryNumber <= maxRetriesCount)
+                {
+                    UpdateRowKeys(entitiesBatch, generateRowKey, retryNumber);
+                }
+            }
+        }
+
+        private static void UpdateRowKeys<T>(IReadOnlyList<T> group, GenerateRowKey<T> generateRowKey, int retryNumber)
+            where T : ITableEntity
+        {
+            for (var itemNumber = 0; itemNumber < group.Count; ++itemNumber)
+            {
+                var entry = group[itemNumber];
+
+                entry.RowKey = generateRowKey(entry, retryNumber, itemNumber);
+            }
+        }
 
         public static async Task<T> InsertAndCheckRowKeyAsync<T>(this INoSQLTableStorage<T> table, T entity,
             Func<string> generateRowKey) where T : ITableEntity, new()
