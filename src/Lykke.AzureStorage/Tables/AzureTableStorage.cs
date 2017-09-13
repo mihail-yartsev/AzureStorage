@@ -11,6 +11,7 @@ using Common.Extensions;
 using Common.Log;
 
 using Lykke.AzureStorage;
+using Lykke.AzureStorage.Tables;
 using Lykke.SettingsReader;
 
 using Microsoft.WindowsAzure.Storage;
@@ -60,7 +61,7 @@ namespace AzureStorage.Tables
         public async Task DoBatchAsync(TableBatchOperation batch)
         {
             var table = await GetTable();
-            await table.ExecuteBatchAsync(batch, GetRequestOptions(), null);
+            await table.ExecuteLimitSafeBatchAsync(batch, GetRequestOptions(), null);
         }
 
         public virtual IEnumerator<T> GetEnumerator()
@@ -98,7 +99,7 @@ namespace AzureStorage.Tables
                     foreach (var item in items)
                         insertBatchOperation.Insert(item);
                     var table = await GetTable();
-                    await table.ExecuteBatchAsync(insertBatchOperation, GetRequestOptions(), null);
+                    await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
                 }
             }
             catch (Exception ex)
@@ -149,7 +150,7 @@ namespace AzureStorage.Tables
                         insertBatchOperation.InsertOrMerge(item);
                     }
                     var table = await GetTable();
-                    await table.ExecuteBatchAsync(insertBatchOperation, GetRequestOptions(), null);
+                    await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
                 }
             }
             catch (Exception ex)
@@ -267,7 +268,7 @@ namespace AzureStorage.Tables
                 operationsBatch.Add(TableOperation.InsertOrReplace(entity));
             var table = await GetTable();
 
-            await table.ExecuteBatchAsync(operationsBatch, GetRequestOptions(), null);
+            await table.ExecuteLimitSafeBatchAsync(operationsBatch, GetRequestOptions(), null);
         }
 
         public virtual async Task InsertOrReplaceAsync(T item)
@@ -304,7 +305,7 @@ namespace AzureStorage.Tables
                         insertBatchOperation.InsertOrReplace(item);
                     }
                     var table = await GetTable();
-                    await table.ExecuteBatchAsync(insertBatchOperation, GetRequestOptions(), null);
+                    await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
                 }
             }
             catch (Exception ex)
@@ -379,7 +380,7 @@ namespace AzureStorage.Tables
                     foreach (var item in items)
                         deleteBatchOperation.Delete(item);
                     var table = await GetTable();
-                    await table.ExecuteBatchAsync(deleteBatchOperation, GetRequestOptions(), null);
+                    await table.ExecuteLimitSafeBatchAsync(deleteBatchOperation, GetRequestOptions(), null);
                 }
             }
             catch (Exception ex)
