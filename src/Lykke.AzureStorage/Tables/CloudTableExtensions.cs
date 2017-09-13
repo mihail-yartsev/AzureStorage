@@ -31,62 +31,61 @@ namespace Lykke.AzureStorage.Tables
         }
     }
 
-    /// <summary>
-    /// Executes batch operation for the collection of TableOperation items with the same Partition key,
-    /// Doesn't depend on Azure limit
-    /// </summary>
-    public class CloudStorageBatchExecutor
-    {
-        public static int BatchLimitPerPartition = 100;
-
-        private readonly IList<TableOperation> _operations;
-        private int _batchCounter;
-
-        public CloudStorageBatchExecutor(IList<TableOperation> operations)
-        {
-            if (operations.GroupBy(op => op.Entity.PartitionKey).Count() > 1)
-                throw new ArgumentOutOfRangeException("There are more than 1 unique partition key in a batch");
-
-            _operations = operations;
-            _batchCounter = 0;
-        }
-
-        public async Task<IList<TableResult>> ExecuteAsync(Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
-        {
-            var result = new List<TableResult>();
-
-            var nextBatch = GetNextBatch().ToList();
-            while (nextBatch.Any())
-            {
-                var tblOperation = new TableBatchOperation();
-                nextBatch.ForEach(op => tblOperation.Add(op));
-
-                result.AddRange(await batchExecutionFunc(tblOperation));
-
-                _batchCounter++;
-
-                nextBatch = GetNextBatch().ToList();
-            }
-
-            return result;
-        }
-
-        private IEnumerable<TableOperation> GetNextBatch()
-        {
-            return _operations.Skip(_batchCounter * BatchLimitPerPartition)
-                .Take(BatchLimitPerPartition);
-        }
-
-    }
-
     public class CloudStorageBatchManager
     {
+        private class CloudStorageBatchExecutor
+        {
+            private int BatchLimitPerPartition = 100;
+            private readonly IList<TableOperation> _operations;
+
+            public CloudStorageBatchExecutor(IList<TableOperation> operations)
+            {
+                _operations = operations;
+            }
+
+            public async Task<IList<TableResult>> ExecuteAsync(Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
+            {
+                var result = new List<TableResult>();
+
+                IEnumerator<TableOperation> enumerator;
+                using (enumerator = _operations.GetEnumerator())
+                {
+                    var nextBatch = GetNextBatch(enumerator).ToList();
+                    while (nextBatch.Any())
+                    {
+                        var tblOperation = new TableBatchOperation();
+                        nextBatch.ForEach(op => tblOperation.Add(op));
+
+                        result.AddRange(await batchExecutionFunc(tblOperation));
+
+                        nextBatch = GetNextBatch(enumerator).ToList();
+                    }
+                }
+
+                return result;
+            }
+
+            private IEnumerable<TableOperation> GetNextBatch(IEnumerator<TableOperation> enumerator)
+            {
+                var result = new List<TableOperation>();
+                var counter = 0;
+
+                while (counter < BatchLimitPerPartition && enumerator.MoveNext())
+                {
+                    result.Add(enumerator.Current);
+                    counter++;
+                }
+
+                return result;
+            }
+        }
+
         public static async Task<IList<TableResult>> ExecuteAsync(TableBatchOperation batchOperation,
             Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
         {
             var result = new List<TableResult>();
 
-            var groups = batchOperation.GroupBy(i => i.Entity.PartitionKey).ToList();
+            var groups = batchOperation.GroupBy(i => i.Entity.PartitionKey);
             foreach (var group in groups)
             {
                 var batchExecutor = new CloudStorageBatchExecutor(group.ToList());
