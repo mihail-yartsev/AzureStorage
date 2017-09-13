@@ -33,53 +33,6 @@ namespace Lykke.AzureStorage.Tables
 
     public class CloudStorageBatchManager
     {
-        private class CloudStorageBatchExecutor
-        {
-            private int BatchLimitPerPartition = 100;
-            private readonly IList<TableOperation> _operations;
-
-            public CloudStorageBatchExecutor(IList<TableOperation> operations)
-            {
-                _operations = operations;
-            }
-
-            public async Task<IList<TableResult>> ExecuteAsync(Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
-            {
-                var result = new List<TableResult>();
-
-                IEnumerator<TableOperation> enumerator;
-                using (enumerator = _operations.GetEnumerator())
-                {
-                    var nextBatch = GetNextBatch(enumerator).ToList();
-                    while (nextBatch.Any())
-                    {
-                        var tblOperation = new TableBatchOperation();
-                        nextBatch.ForEach(op => tblOperation.Add(op));
-
-                        result.AddRange(await batchExecutionFunc(tblOperation));
-
-                        nextBatch = GetNextBatch(enumerator).ToList();
-                    }
-                }
-
-                return result;
-            }
-
-            private IEnumerable<TableOperation> GetNextBatch(IEnumerator<TableOperation> enumerator)
-            {
-                var result = new List<TableOperation>();
-                var counter = 0;
-
-                while (counter < BatchLimitPerPartition && enumerator.MoveNext())
-                {
-                    result.Add(enumerator.Current);
-                    counter++;
-                }
-
-                return result;
-            }
-        }
-
         public static async Task<IList<TableResult>> ExecuteAsync(TableBatchOperation batchOperation,
             Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
         {
@@ -88,11 +41,45 @@ namespace Lykke.AzureStorage.Tables
             var groups = batchOperation.GroupBy(i => i.Entity.PartitionKey);
             foreach (var group in groups)
             {
-                var batchExecutor = new CloudStorageBatchExecutor(group.ToList());
-                result.AddRange(await batchExecutor.ExecuteAsync(batchExecutionFunc));
+                result.AddRange(await ExecuteSinglePartitionAsync(group, batchExecutionFunc));
             }
 
             return result;
+        }
+
+        private const int BatchLimitPerPartition = 100;
+
+        private static async Task<IList<TableResult>> ExecuteSinglePartitionAsync(IEnumerable<TableOperation> operations, 
+            Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
+        {
+            var result = new List<TableResult>();
+
+            using (var enumerator = operations.GetEnumerator())
+            {
+                while (true)
+                {
+                    var batchOperations = GetNextBatchOperations(enumerator);
+
+                    if (!batchOperations.Any())
+                    {
+                        return result;
+                    }
+
+                    result.AddRange(await batchExecutionFunc(batchOperations));
+                }
+            }
+        }
+
+        private static TableBatchOperation GetNextBatchOperations(IEnumerator<TableOperation> enumerator)
+        {
+            var batchOperations = new TableBatchOperation();
+
+            while (enumerator.MoveNext() && batchOperations.Count < BatchLimitPerPartition)
+            {
+                batchOperations.Add(enumerator.Current);
+            }
+
+            return batchOperations;
         }
     }
 }
