@@ -33,28 +33,14 @@ namespace Lykke.AzureStorage.Tables
 
     public class CloudStorageBatchManager
     {
+        private const int BatchLimitPerPartition = 100;
+
         public static async Task<IList<TableResult>> ExecuteAsync(TableBatchOperation batchOperation,
             Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
         {
             var result = new List<TableResult>();
 
-            var groups = batchOperation.GroupBy(i => i.Entity.PartitionKey);
-            foreach (var group in groups)
-            {
-                result.AddRange(await ExecuteSinglePartitionAsync(group, batchExecutionFunc));
-            }
-
-            return result;
-        }
-
-        private const int BatchLimitPerPartition = 100;
-
-        private static async Task<IList<TableResult>> ExecuteSinglePartitionAsync(IEnumerable<TableOperation> operations, 
-            Func<TableBatchOperation, Task<IList<TableResult>>> batchExecutionFunc)
-        {
-            var result = new List<TableResult>();
-
-            using (var enumerator = operations.GetEnumerator())
+            using (IEnumerator<TableOperation> enumerator = batchOperation.GetEnumerator())
             {
                 while (true)
                 {
