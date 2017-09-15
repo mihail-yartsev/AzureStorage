@@ -400,11 +400,11 @@ namespace AzureStorage
 
                 foreach (var key in keys)
                 {
-                    sqlFilter.Append("PartitionKey " + QueryComparisons.Equal + " '" + key.Item1 + "' and RowKey " +
-                                     QueryComparisons.Equal + " '" + key.Item2 + "'");
-
                     if (sqlFilter.Length > 0)
                         sqlFilter.Append(" or ");
+
+                    sqlFilter.Append("PartitionKey " + QueryComparisons.Equal + " '" + key.Item1 + "' and RowKey " +
+                                     QueryComparisons.Equal + " '" + key.Item2 + "'");
                 }
                 return new TableQuery<T>().Where(sqlFilter.ToString());
             }
