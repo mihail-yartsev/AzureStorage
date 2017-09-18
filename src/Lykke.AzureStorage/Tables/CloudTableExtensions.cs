@@ -60,7 +60,7 @@ namespace Lykke.AzureStorage.Tables
         {
             var batchOperations = new TableBatchOperation();
 
-            while (enumerator.MoveNext() && batchOperations.Count < BatchLimitPerPartition)
+            while (batchOperations.Count < BatchLimitPerPartition && enumerator.MoveNext())
             {
                 batchOperations.Add(enumerator.Current);
             }
