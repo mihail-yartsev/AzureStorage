@@ -2,11 +2,10 @@ using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using AzureStorage.Tables;
 using Microsoft.WindowsAzure.Storage.Table;
-using Microsoft.WindowsAzure.Storage;
-using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
-using System.IO;
 using System.Threading.Tasks;
+using AzureStorage;
+using Lykke.AzureStorage.Test.Mocks;
 
 namespace Lykke.AzureStorage.Test
 {
@@ -19,7 +18,7 @@ namespace Lykke.AzureStorage.Test
     public class AzureTableStorageTest
     {
         private readonly string _azureStorageConnectionString;
-        private AzureTableStorage<TestEntity> _testEntityStorage;
+        private INoSQLTableStorage<TestEntity> _testEntityStorage;
         private string _tableName = "LykkeAzureStorageTest";
 
         //AzureStorage - azure account
@@ -35,7 +34,10 @@ namespace Lykke.AzureStorage.Test
         [TestInitialize]
         public void TestInit()
         {
-            _testEntityStorage = new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
+            _testEntityStorage = AzureTableStorage<TestEntity>.Create(
+                new ConnStringReloadingManagerMock(_azureStorageConnectionString), 
+                _tableName, 
+                null);
         }
 
         [TestCleanup]
@@ -61,7 +63,10 @@ namespace Lykke.AzureStorage.Test
         {
             var testEntity = GetTestEntity();
 
-            var storage1 = new AzureTableStorage<TestEntity>(_azureStorageConnectionString, _tableName, null);
+            var storage1 = AzureTableStorage<TestEntity>.Create(
+                new ConnStringReloadingManagerMock(_azureStorageConnectionString),
+                _tableName,
+                null);
 
             Parallel.For(1, 10, i =>
             {
@@ -90,7 +95,10 @@ namespace Lykke.AzureStorage.Test
         {
             var testEntity = GetTestEntity();
 
-            var storage1 = new AzureTableStorageWithCache<TestEntity>(_azureStorageConnectionString, _tableName, null);
+            var storage1 = AzureTableStorage<TestEntity>.CreateWithCache(
+                new ConnStringReloadingManagerMock(_azureStorageConnectionString), 
+                _tableName,
+                null);
 
             Parallel.For(1, 10, i =>
             {

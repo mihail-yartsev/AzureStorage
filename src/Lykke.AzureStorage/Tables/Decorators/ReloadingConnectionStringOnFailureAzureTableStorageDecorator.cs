@@ -10,9 +10,11 @@ namespace AzureStorage.Tables.Decorators
     /// <summary>
     /// Decorator, which adds reloading ConnectionString on authenticate failure to operations of <see cref="INoSQLTableStorage{T}"/> implementation
     /// </summary>
-    public class ReloadingConnectionStringOnFailureAzureTableStorageDecorator<TEntity> : ReloadingOnFailureDecoratorBase<INoSQLTableStorage<TEntity>>, INoSQLTableStorage<TEntity> 
+    internal class ReloadingConnectionStringOnFailureAzureTableStorageDecorator<TEntity> : ReloadingOnFailureDecoratorBase<INoSQLTableStorage<TEntity>>, INoSQLTableStorage<TEntity> 
         where TEntity : ITableEntity, new()
     {
+        public string Name => Wrap(x => x.Name);
+
         protected override Func<Task<INoSQLTableStorage<TEntity>>> MakeStorage { get; }
 
         public ReloadingConnectionStringOnFailureAzureTableStorageDecorator(Func<Task<INoSQLTableStorage<TEntity>>> makeStorage)
@@ -76,6 +78,9 @@ namespace AzureStorage.Tables.Decorators
 
         public bool RecordExists(TEntity item)
             => Wrap(x => x.RecordExists(item));
+
+        public Task<bool> RecordExistsAsync(TEntity item)
+            => WrapAsync(x => x.RecordExistsAsync(item));
 
         public Task<TEntity> GetDataAsync(string partition, string row)
             => WrapAsync(x => x.GetDataAsync(partition, row));

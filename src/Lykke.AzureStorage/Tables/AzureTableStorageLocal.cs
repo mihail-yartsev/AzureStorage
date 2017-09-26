@@ -15,6 +15,8 @@ namespace AzureStorage.Tables
 {
     public class AzureTableStorageLocal<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
     {
+        public string Name => $"{_prefix}:{_tableName}";
+
         private readonly string _prefix;
         private readonly string _tableName;
 
@@ -122,6 +124,11 @@ namespace AzureStorage.Tables
         public bool RecordExists(T item)
         {
             return GetDataAsync(item.PartitionKey, item.RowKey).Result != null;
+        }
+
+        public async Task<bool> RecordExistsAsync(T item)
+        {
+            return await GetDataAsync(item.PartitionKey, item.RowKey) != null;
         }
 
         public Task DoBatchAsync(TableBatchOperation batch)

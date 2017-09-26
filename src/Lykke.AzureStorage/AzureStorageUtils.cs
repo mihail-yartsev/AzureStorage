@@ -45,21 +45,6 @@ namespace AzureStorage
             return notLogCodes.Any(notLogCode => storageException.RequestInformation.HttpStatusCode == notLogCode);
         }
 
-        public static string PrintItems(IEnumerable<object> items)
-        {
-            var sb = new StringBuilder();
-
-            if (items != null && items.Any())
-            {
-                foreach (var item in items)
-                {
-                    sb.Append(PrintItem(item));
-                }
-            }
-
-            return sb.ToString();
-        }
-
         public static string PrintItem(object item)
         {
             if (item is string)
@@ -700,5 +685,5 @@ namespace AzureStorage
 
 			return tasks[0].Result;
 		}
-	}
+    }
 }
