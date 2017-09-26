@@ -35,7 +35,7 @@ namespace AzureStorage.Tables
             _tableName = tableName;
             _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
 
-            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
+            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(5));
         }
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace AzureStorage.Tables
         /// <param name="connectionStringManager">Connection string reloading manager</param>
         /// <param name="tableName">Table's name</param>
         /// <param name="log">Log</param>
-        /// <param name="maxExecutionTimeout">Maximum execution time of single request (within retries). Default is 30 seconds</param>
+        /// <param name="maxExecutionTimeout">Maximum execution time of single request (within retries). Default is 5 seconds</param>
         /// <param name="onModificationRetryCount">Retries count when performs modification operation. Default value is 10</param>
         /// <param name="onGettingRetryCount">Retries count when performs reading operation. Default value is 10</param>
         /// <param name="retryDelay">Delay between retries. Default is 200 milliseconds</param>
@@ -93,7 +93,7 @@ namespace AzureStorage.Tables
         /// <param name="connectionStringManager">Connection string reloading manager</param>
         /// <param name="tableName">Table's name</param>
         /// <param name="log">Log</param>
-        /// <param name="maxExecutionTimeout">Maximum execution time of single request (within retries). Default is 30 seconds</param>
+        /// <param name="maxExecutionTimeout">Maximum execution time of single request (within retries). Default is 5 seconds</param>
         /// <param name="onModificationRetryCount">Retries count when performs modification operation. Default value is 10</param>
         /// <param name="onGettingRetryCount">Retries count when performs reading operation. Default value is 10</param>
         /// <param name="retryDelay">Delay between retries. Default is 200 milliseconds</param>
