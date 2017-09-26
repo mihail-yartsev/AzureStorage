@@ -21,9 +21,11 @@ namespace AzureStorage.Tables.Decorators
     /// - GetDataRowKeysOnlyAsync
     /// - ExecuteAsync
     /// </remarks>
-    public class RetryOnFailureAzureTableStorageDecorator<TEntity> : INoSQLTableStorage<TEntity> 
+    internal class RetryOnFailureAzureTableStorageDecorator<TEntity> : INoSQLTableStorage<TEntity> 
         where TEntity : ITableEntity, new()
     {
+        public string Name => _impl.Name;
+
         private readonly INoSQLTableStorage<TEntity> _impl;
         private readonly int _onModificationsRetryCount;
         private readonly int _onGettingRetryCount;
@@ -43,11 +45,11 @@ namespace AzureStorage.Tables.Decorators
         /// <param name="impl"><see cref="INoSQLTableStorage{T}"/> instance to which actual work will be delegated</param>
         /// <param name="onModificationsRetryCount">Retries count for write operations</param>
         /// <param name="onGettingRetryCount">Retries count for read operations</param>
-        /// <param name="retryDelay">Delay before next retry. Default value is <see cref="TimeSpan.Zero"/></param>
+        /// <param name="retryDelay">Delay before next retry. Default value is 200 milliseconds</param>
         public RetryOnFailureAzureTableStorageDecorator(
             INoSQLTableStorage<TEntity> impl, 
             int onModificationsRetryCount = 10, 
-            int onGettingRetryCount = 1, 
+            int onGettingRetryCount = 10, 
             TimeSpan? retryDelay = null)
         {
             _impl = impl ?? throw new ArgumentNullException(nameof(impl));
@@ -65,7 +67,7 @@ namespace AzureStorage.Tables.Decorators
             _onModificationsRetryCount = onModificationsRetryCount;
             _onGettingRetryCount = onGettingRetryCount;
             _retryService = new RetryService(
-                retryDelay: retryDelay ?? TimeSpan.Zero,
+                retryDelay: retryDelay ?? TimeSpan.FromMilliseconds(200),
                 exceptionFilter: e =>
                 {
                     var storageException = e as StorageException;
@@ -162,6 +164,11 @@ namespace AzureStorage.Tables.Decorators
         public bool RecordExists(TEntity item)
         {
             return _retryService.Retry(() => _impl.RecordExists(item), _onGettingRetryCount);
+        }
+
+        public Task<bool> RecordExistsAsync(TEntity item)
+        {
+            return _retryService.RetryAsync(() => _impl.RecordExistsAsync(item), _onGettingRetryCount);
         }
 
         public async Task<TEntity> GetDataAsync(string partition, string row)
