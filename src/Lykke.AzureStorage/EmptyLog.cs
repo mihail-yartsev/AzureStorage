@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using Common.Log;
 
@@ -25,8 +23,27 @@ namespace Lykke.AzureStorage
             return Task.CompletedTask;
         }
 
-        public Task WriteFatalErrorAsync(string component, string process, string context, Exception exeption,
-            DateTime? dateTime = null)
+        public Task WriteFatalErrorAsync(string component, string process, string context, Exception exeption, DateTime? dateTime = null)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task WriteInfoAsync(string process, string context, string info, DateTime? dateTime = null)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task WriteWarningAsync(string process, string context, string info, DateTime? dateTime = null)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task WriteErrorAsync(string process, string context, Exception exception, DateTime? dateTime = null)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task WriteFatalErrorAsync(string process, string context, Exception exception, DateTime? dateTime = null)
         {
             return Task.CompletedTask;
         }
