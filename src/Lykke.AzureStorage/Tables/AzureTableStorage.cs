@@ -35,7 +35,7 @@ namespace AzureStorage.Tables
             _tableName = tableName;
             _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
 
-            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
+            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(5));
         }
 
         /// <summary>
