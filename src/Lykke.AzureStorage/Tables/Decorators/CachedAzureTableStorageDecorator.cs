@@ -7,21 +7,23 @@ using Common.Log;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
-namespace AzureStorage.Tables
+namespace AzureStorage.Tables.Decorators
 {
     /// <summary>
-    ///     NoSql хранилище, которое хранит данные в кэше
+    ///  Cached <see cref="INoSQLTableStorage{T}"/> decorator
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class AzureTableStorageWithCache<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
+    internal class CachedAzureTableStorageDecorator<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
     {
+        public string Name => _table.Name;
+        
+        private readonly INoSQLTableStorage<T> _table;
         private readonly NoSqlTableInMemory<T> _cache;
-        private readonly AzureTableStorage<T> _table;
 
-        public AzureTableStorageWithCache(string connstionString, string tableName, ILog log)
+        public CachedAzureTableStorageDecorator(INoSQLTableStorage<T> table)
         {
+            _table = table;
             _cache = new NoSqlTableInMemory<T>();
-            _table = new AzureTableStorage<T>(connstionString, tableName, log);
             Init();
         }
 
@@ -131,6 +133,11 @@ namespace AzureStorage.Tables
         public bool RecordExists(T item)
         {
             return _table.RecordExists(item);
+        }
+
+        public Task<bool> RecordExistsAsync(T item)
+        {
+            return _table.RecordExistsAsync(item);
         }
 
         public async Task DoBatchAsync(TableBatchOperation batch)

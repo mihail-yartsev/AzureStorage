@@ -88,8 +88,9 @@ namespace AzureStorage.Tables
 
     public class NoSqlTableInMemory<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
     {
+        public string Name => "InMemory";
+        
         private readonly SemaphoreSlim _lockSlim = new SemaphoreSlim(1);
-
 
         public readonly ConcurrentDictionary<string, Partition> Partitions = new ConcurrentDictionary<string, Partition>();
 
@@ -351,6 +352,11 @@ namespace AzureStorage.Tables
         public bool RecordExists(T item)
         {
             return this[item.PartitionKey, item.RowKey] != null;
+        }
+
+        public Task<bool> RecordExistsAsync(T item)
+        {
+            return Task.Run(() => this[item.PartitionKey, item.RowKey] != null);
         }
 
         public void DoBatch(TableBatchOperation batch)

@@ -10,7 +10,6 @@ using Common;
 using Common.Extensions;
 using Common.Log;
 
-using Lykke.AzureStorage;
 using Lykke.AzureStorage.Tables;
 using Lykke.SettingsReader;
 
@@ -23,31 +22,104 @@ namespace AzureStorage.Tables
     {
         public const int Conflict = 409;
 
-        private readonly TimeSpan _maxExecutionTime;
+        public string Name => _tableName;
 
-        private readonly ILog _log;
+        private readonly TimeSpan _maxExecutionTime;
         private readonly string _tableName;
 
         private readonly CloudStorageAccount _cloudStorageAccount;
         private bool _tableCreated;
 
-        [Obsolete("Have to use the AzureTableStorage.Create method to reloading ConnectionString on access failure.", false)]
-        public AzureTableStorage(string connectionString, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null) 
+        private AzureTableStorage(string connectionString, string tableName, TimeSpan? maxExecutionTimeout = null) 
         {
             _tableName = tableName;
-            _log = log ?? EmptyLog.Instance;
             _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
 
-            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
+            _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(5));
         }
 
-        public static INoSQLTableStorage<T> Create(IReloadingManager<string> connectionStringManager, string tableName, ILog log, TimeSpan? maxExecutionTimeout = null)
+        /// <summary>
+        /// Creates <see cref="AzureTableStorage{T}"/> with auto retries (only atomic operations) and connection string reloading.
+        /// </summary>
+        /// <remarks>
+        /// Not atomic methods without retries:
+        /// - GetDataByChunksAsync
+        /// - ScanDataAsync
+        /// - FirstOrNullViaScanAsync
+        /// - GetDataRowKeysOnlyAsync
+        /// - ExecuteAsync
+        /// </remarks>
+        /// <param name="connectionStringManager">Connection string reloading manager</param>
+        /// <param name="tableName">Table's name</param>
+        /// <param name="log">Log</param>
+        /// <param name="maxExecutionTimeout">Maximum execution time of single request (within retries). Default is 5 seconds</param>
+        /// <param name="onModificationRetryCount">Retries count when performs modification operation. Default value is 10</param>
+        /// <param name="onGettingRetryCount">Retries count when performs reading operation. Default value is 10</param>
+        /// <param name="retryDelay">Delay between retries. Default is 200 milliseconds</param>
+        /// <returns></returns>
+        public static INoSQLTableStorage<T> Create(
+            IReloadingManager<string> connectionStringManager,
+            string tableName,
+            ILog log,
+            TimeSpan? maxExecutionTimeout = null,
+            int onModificationRetryCount = 10,
+            int onGettingRetryCount = 10,
+            TimeSpan? retryDelay = null)
         {
-            return new ReloadingConnectionStringOnFailureAzureTableStorageDecorator<T>(
-#pragma warning disable 618
-                async () => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, log, maxExecutionTimeout)
-#pragma warning restore 618
-            );
+            async Task<INoSQLTableStorage<T>> MakeStorage() 
+                => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, maxExecutionTimeout);
+
+            return
+                new LogExceptionsAzureTableStorageDecorator<T>(
+                    new RetryOnFailureAzureTableStorageDecorator<T>(
+                        new ReloadingConnectionStringOnFailureAzureTableStorageDecorator<T>(MakeStorage),
+                        onModificationRetryCount,
+                        onGettingRetryCount,
+                        retryDelay),
+                    log);
+        }
+
+        /// <summary>
+        /// Creates <see cref="AzureTableStorage{T}"/> with cache, auto retries (only atomic operations) and connection string reloading.
+        /// </summary>
+        /// <remarks>
+        /// Not atomic methods without retries:
+        /// - GetDataByChunksAsync
+        /// - ScanDataAsync
+        /// - FirstOrNullViaScanAsync
+        /// - GetDataRowKeysOnlyAsync
+        /// - ExecuteAsync
+        /// </remarks>
+        /// <param name="connectionStringManager">Connection string reloading manager</param>
+        /// <param name="tableName">Table's name</param>
+        /// <param name="log">Log</param>
+        /// <param name="maxExecutionTimeout">Maximum execution time of single request (within retries). Default is 5 seconds</param>
+        /// <param name="onModificationRetryCount">Retries count when performs modification operation. Default value is 10</param>
+        /// <param name="onGettingRetryCount">Retries count when performs reading operation. Default value is 10</param>
+        /// <param name="retryDelay">Delay between retries. Default is 200 milliseconds</param>
+        /// <returns></returns>
+        public static INoSQLTableStorage<T> CreateWithCache(
+            IReloadingManager<string> connectionStringManager,
+            string tableName,
+            ILog log,
+            TimeSpan? maxExecutionTimeout = null,
+            int onModificationRetryCount = 10,
+            int onGettingRetryCount = 10,
+            TimeSpan? retryDelay = null)
+        {
+            async Task<INoSQLTableStorage<T>> MakeStorage() 
+                => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, maxExecutionTimeout);
+
+            return
+                new LogExceptionsAzureTableStorageDecorator<T>(
+                    new CachedAzureTableStorageDecorator<T>(
+                        new RetryOnFailureAzureTableStorageDecorator<T>(
+                            new ReloadingConnectionStringOnFailureAzureTableStorageDecorator<T>(MakeStorage),
+                            onModificationRetryCount,
+                            onGettingRetryCount,
+                            retryDelay)
+                    ),
+                    log);
         }
 
         private TableRequestOptions GetRequestOptions()
@@ -60,7 +132,7 @@ namespace AzureStorage.Tables
 
         public async Task DoBatchAsync(TableBatchOperation batch)
         {
-            var table = await GetTable();
+            var table = await GetTableAsync();
             await table.ExecuteLimitSafeBatchAsync(batch, GetRequestOptions(), null);
         }
 
@@ -76,187 +148,105 @@ namespace AzureStorage.Tables
 
         public virtual async Task InsertAsync(T item, params int[] notLogCodes)
         {
-            try
-            {
-                var table = await GetTable();
-                await table.ExecuteAsync(TableOperation.Insert(item), GetRequestOptions(), null);
-            }
-            catch (Exception ex)
-            {
-                await HandleException(item, ex, notLogCodes);
-                throw;
-            }
+            var table = await GetTableAsync();
+            await table.ExecuteAsync(TableOperation.Insert(item), GetRequestOptions(), null);
         }
 
         public async Task InsertAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
-            try
+            
+            if (items.Any())
             {
-                if (items.Any())
-                {
-                    var insertBatchOperation = new TableBatchOperation();
-                    foreach (var item in items)
-                        insertBatchOperation.Insert(item);
-                    var table = await GetTable();
-                    await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
-                }
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(InsertAsync),
-                        AzureStorageUtils.PrintItems(items),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertAsync batch", AzureStorageUtils.PrintItems(items), ex);
-                throw;
+                var insertBatchOperation = new TableBatchOperation();
+                foreach (var item in items)
+                    insertBatchOperation.Insert(item);
+                var table = await GetTableAsync();
+                await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
             }
         }
 
         public async Task InsertOrMergeAsync(T item)
         {
-            try
-            {
-                var table = await GetTable();
-                await table.ExecuteAsync(TableOperation.InsertOrMerge(item), GetRequestOptions(), null);
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(InsertOrMergeAsync),
-                        AzureStorageUtils.PrintItem(item),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrMerge item", AzureStorageUtils.PrintItem(item), ex);
-                throw;
-            }
+            var table = await GetTableAsync();
+
+            await table.ExecuteAsync(TableOperation.InsertOrMerge(item), GetRequestOptions(), null);
         }
 
         public async Task InsertOrMergeBatchAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
-            try
+            
+            if (items.Any())
             {
-                if (items.Any())
+                var insertBatchOperation = new TableBatchOperation();
+                foreach (var item in items)
                 {
-                    var insertBatchOperation = new TableBatchOperation();
-                    foreach (var item in items)
-                    {
-                        insertBatchOperation.InsertOrMerge(item);
-                    }
-                    var table = await GetTable();
-                    await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
+                    insertBatchOperation.InsertOrMerge(item);
                 }
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(InsertOrMergeBatchAsync),
-                        AzureStorageUtils.PrintItems(items),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync(
-                        "Table storage: " + _tableName, nameof(InsertOrMergeBatchAsync), AzureStorageUtils.PrintItems(items), ex);
-                throw;
+                var table = await GetTableAsync();
+                await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
             }
         }
 
         public async Task<T> ReplaceAsync(string partitionKey, string rowKey, Func<T, T> replaceAction)
         {
-            object itm = "Not read";
-            try
+            while (true)
             {
-                while (true)
-                    try
+                try
+                {
+                    var entity = await GetDataAsync(partitionKey, rowKey);
+                    if (entity != null)
                     {
-                        var entity = await GetDataAsync(partitionKey, rowKey);
-                        if (entity != null)
+                        var result = replaceAction(entity);
+                        if (result != null)
                         {
-                            var result = replaceAction(entity);
-                            itm = result;
-                            if (result != null)
-                            {
-                                var table = await GetTable();
-                                await table.ExecuteAsync(TableOperation.Replace(result), GetRequestOptions(), null);
-                            }
-
-                            return result;
+                            var table = await GetTableAsync();
+                            await table.ExecuteAsync(TableOperation.Replace(result), GetRequestOptions(), null);
                         }
 
-                        return null;
+                        return result;
                     }
-                    catch (StorageException e)
-                    {
-                        // Если поймали precondition fall = 412, значит в другом потоке данную сущность успели поменять
-                        // - нужно повторить операцию, пока не исполнится без ошибок
-                        if (e.RequestInformation.HttpStatusCode != 412)
-                            throw;
-                    }
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(ReplaceAsync),
-                        AzureStorageUtils.PrintItem(itm),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Replace item", AzureStorageUtils.PrintItem(itm), ex);
-                throw;
+
+                    return null;
+                }
+                catch (StorageException e)
+                {
+                    // Если поймали precondition fall = 412, значит в другом потоке данную сущность успели поменять
+                    // - нужно повторить операцию, пока не исполнится без ошибок
+                    if (e.RequestInformation.HttpStatusCode != 412)
+                        throw;
+                }
             }
         }
 
         public async Task<T> MergeAsync(string partitionKey, string rowKey, Func<T, T> mergeAction)
         {
-            object itm = "Not read";
-
-            try
+            while (true)
             {
-                while (true)
-                    try
+                try
+                {
+                    var entity = await GetDataAsync(partitionKey, rowKey);
+                    if (entity != null)
                     {
-                        var entity = await GetDataAsync(partitionKey, rowKey);
-                        if (entity != null)
+                        var result = mergeAction(entity);
+                        if (result != null)
                         {
-                            var result = mergeAction(entity);
-                            itm = result;
-                            if (result != null)
-                            {
-                                var table = await GetTable();
-                                await table.ExecuteAsync(TableOperation.Merge(result), GetRequestOptions(), null);
-                            }
-
-                            return result;
+                            var table = await GetTableAsync();
+                            await table.ExecuteAsync(TableOperation.Merge(result), GetRequestOptions(), null);
                         }
-                        return null;
+
+                        return result;
                     }
-                    catch (StorageException e)
-                    {
-                        // Если поймали precondition fall = 412, значит в другом потоке данную сущность успели поменять
-                        // - нужно повторить операцию, пока не исполнится без ошибок
-                        if (e.RequestInformation.HttpStatusCode != 412)
-                            throw;
-                    }
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(MergeAsync),
-                        AzureStorageUtils.PrintItem(itm),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, nameof(MergeAsync), AzureStorageUtils.PrintItem(itm), ex);
-                throw;
+                    return null;
+                }
+                catch (StorageException e)
+                {
+                    // Если поймали precondition fall = 412, значит в другом потоке данную сущность успели поменять
+                    // - нужно повторить операцию, пока не исполнится без ошибок
+                    if (e.RequestInformation.HttpStatusCode != 412)
+                        throw;
+                }
             }
         }
 
@@ -266,82 +256,37 @@ namespace AzureStorage.Tables
 
             foreach (var entity in entites)
                 operationsBatch.Add(TableOperation.InsertOrReplace(entity));
-            var table = await GetTable();
+            var table = await GetTableAsync();
 
             await table.ExecuteLimitSafeBatchAsync(operationsBatch, GetRequestOptions(), null);
         }
 
         public virtual async Task InsertOrReplaceAsync(T item)
         {
-            try
-            {
-                var table = await GetTable();
-                await table.ExecuteAsync(TableOperation.InsertOrReplace(item), GetRequestOptions(), null);
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(InsertOrReplaceAsync),
-                        AzureStorageUtils.PrintItem(item),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "InsertOrReplace item", AzureStorageUtils.PrintItem(item), ex);
-                throw;
-            }
+            var table = await GetTableAsync();
+            await table.ExecuteAsync(TableOperation.InsertOrReplace(item), GetRequestOptions(), null);
         }
 
         public async Task InsertOrReplaceAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
-            try
+
+            if (items.Any())
             {
-                if (items.Any())
+                var insertBatchOperation = new TableBatchOperation();
+                foreach (var item in items)
                 {
-                    var insertBatchOperation = new TableBatchOperation();
-                    foreach (var item in items)
-                    {
-                        insertBatchOperation.InsertOrReplace(item);
-                    }
-                    var table = await GetTable();
-                    await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
+                    insertBatchOperation.InsertOrReplace(item);
                 }
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(InsertOrReplaceAsync),
-                        AzureStorageUtils.PrintItems(items),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync(
-                        "Table storage: " + _tableName, "InsertOrReplaceAsync batch", AzureStorageUtils.PrintItems(items), ex);
-                throw;
+                var table = await GetTableAsync();
+                await table.ExecuteLimitSafeBatchAsync(insertBatchOperation, GetRequestOptions(), null);
             }
         }
 
         public virtual async Task DeleteAsync(T item)
         {
-            try
-            {
-                var table = await GetTable();
-                await table.ExecuteAsync(TableOperation.Delete(item), GetRequestOptions(), null);
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(DeleteAsync),
-                        AzureStorageUtils.PrintItem(item),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Delete item", AzureStorageUtils.PrintItem(item), ex);
-                throw;
-            }
+            var table = await GetTableAsync();
+            await table.ExecuteAsync(TableOperation.Delete(item), GetRequestOptions(), null);
         }
 
         public async Task<T> DeleteAsync(string partitionKey, string rowKey)
@@ -372,28 +317,14 @@ namespace AzureStorage.Tables
         public async Task DeleteAsync(IEnumerable<T> items)
         {
             items = items.ToArray();
-            try
+
+            if (items.Any())
             {
-                if (items.Any())
-                {
-                    var deleteBatchOperation = new TableBatchOperation();
-                    foreach (var item in items)
-                        deleteBatchOperation.Delete(item);
-                    var table = await GetTable();
-                    await table.ExecuteLimitSafeBatchAsync(deleteBatchOperation, GetRequestOptions(), null);
-                }
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(DeleteAsync),
-                        AzureStorageUtils.PrintItems(items),
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "DeleteAsync batch", AzureStorageUtils.PrintItems(items), ex);
-                throw;
+                var deleteBatchOperation = new TableBatchOperation();
+                foreach (var item in items)
+                    deleteBatchOperation.Delete(item);
+                var table = await GetTableAsync();
+                await table.ExecuteLimitSafeBatchAsync(deleteBatchOperation, GetRequestOptions(), null);
             }
         }
 
@@ -418,6 +349,11 @@ namespace AzureStorage.Tables
             return this[item.PartitionKey, item.RowKey] != null;
         }
 
+        public virtual async Task<bool> RecordExistsAsync(T item)
+        {
+            return await GetDataAsync(item.PartitionKey, item.RowKey) != null;
+        }
+
         public virtual T this[string partition, string row] => GetDataAsync(partition, row).RunSync();
 
         public async Task<IEnumerable<T>> GetDataAsync(string partitionKey, IEnumerable<string> rowKeys,
@@ -427,7 +363,7 @@ namespace AzureStorage.Tables
 
             await Task.WhenAll(
                 rowKeys.ToPieces(pieceSize).Select(piece =>
-                        ExecuteQueryAsync("GetDataWithMutipleRows",
+                        ExecuteQueryAsync(
                             AzureStorageUtils.QueryGenerator<T>.MultipleRowKeys(partitionKey, piece.ToArray()), filter,
                             items =>
                             {
@@ -450,7 +386,7 @@ namespace AzureStorage.Tables
 
             await Task.WhenAll(
                 partitionKeys.ToPieces(pieceSize).Select(piece =>
-                        ExecuteQueryAsync("GetDataWithMutiplePartitionKeys",
+                        ExecuteQueryAsync(
                             AzureStorageUtils.QueryGenerator<T>.MultiplePartitionKeys(piece.ToArray()), filter,
                             items =>
                             {
@@ -473,7 +409,7 @@ namespace AzureStorage.Tables
 
             await Task.WhenAll(
                 keys.ToPieces(pieceSize).Select(piece =>
-                        ExecuteQueryAsync("GetDataWithMoltipleKeysAsync",
+                        ExecuteQueryAsync(
                             AzureStorageUtils.QueryGenerator<T>.MultipleKeys(piece), filter,
                             items =>
                             {
@@ -492,13 +428,13 @@ namespace AzureStorage.Tables
         public Task GetDataByChunksAsync(Func<IEnumerable<T>, Task> chunks)
         {
             var rangeQuery = new TableQuery<T>();
-            return ExecuteQueryAsync("GetDataByChunksAsync", rangeQuery, null, async itms => { await chunks(itms); });
+            return ExecuteQueryAsync(rangeQuery, null, async itms => { await chunks(itms); });
         }
 
         public Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks)
         {
             var rangeQuery = new TableQuery<T>();
-            return ExecuteQueryAsync("GetDataByChunksAsync", rangeQuery, null, itms =>
+            return ExecuteQueryAsync(rangeQuery, null, itms =>
             {
                 chunks(itms);
                 return true;
@@ -515,36 +451,20 @@ namespace AzureStorage.Tables
         {
             var rangeQuery = CompileTableQuery(partitionKey);
 
-            return ExecuteQueryAsync("ScanDataAsync", rangeQuery, null, chunk);
+            return ExecuteQueryAsync(rangeQuery, null, chunk);
         }
 
         public Task ScanDataAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunk)
         {
-            return ExecuteQueryAsync("ScanDataAsync", rangeQuery, null, chunk);
+            return ExecuteQueryAsync(rangeQuery, null, chunk);
         }
 
         public virtual async Task<T> GetDataAsync(string partition, string row)
         {
-            try
-            {
-                var retrieveOperation = TableOperation.Retrieve<T>(partition, row);
-                var table = await GetTable();
-                var retrievedResult = await table.ExecuteAsync(retrieveOperation, GetRequestOptions(), null);
-                return (T)retrievedResult.Result;
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(GetDataAsync),
-                        "partitionId=" + partition + "; rowId=" + row,
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync(
-                        "Table storage: " + _tableName, "Get item async by partId and rowId", "partitionId=" + partition + "; rowId=" + row, ex);
-                throw;
-            }
+            var retrieveOperation = TableOperation.Retrieve<T>(partition, row);
+            var table = await GetTableAsync();
+            var retrievedResult = await table.ExecuteAsync(retrieveOperation, GetRequestOptions(), null);
+            return (T) retrievedResult.Result;
         }
 
 
@@ -554,7 +474,7 @@ namespace AzureStorage.Tables
 
             T result = null;
 
-            await ExecuteQueryAsync("ScanDataAsync", query, itm => true,
+            await ExecuteQueryAsync(query, itm => true,
                 itms =>
                 {
                     result = dataToSearch(itms);
@@ -572,7 +492,7 @@ namespace AzureStorage.Tables
             var query = AzureStorageUtils.QueryGenerator<T>.RowKeyOnly.GetTableQuery(rowKeys);
             var result = new List<T>();
 
-            await ExecuteQueryAsync("GetDataRowKeysOnlyAsync", query, null, chunk =>
+            await ExecuteQueryAsync(query, null, chunk =>
             {
                 result.AddRange(chunk);
                 return Task.FromResult(0);
@@ -584,7 +504,7 @@ namespace AzureStorage.Tables
         public async Task<IEnumerable<T>> WhereAsyncc(TableQuery<T> rangeQuery, Func<T, Task<bool>> filter = null)
         {
             var result = new List<T>();
-            await ExecuteQueryAsync2("WhereAsyncc", rangeQuery, filter, itm =>
+            await ExecuteQueryAsync2(rangeQuery, filter, itm =>
             {
                 result.Add(itm);
                 return true;
@@ -597,7 +517,7 @@ namespace AzureStorage.Tables
         {
             var rangeQuery = new TableQuery<T>();
             var result = new List<T>();
-            await ExecuteQueryAsync("GetDataAsync", rangeQuery, filter, itms =>
+            await ExecuteQueryAsync(rangeQuery, filter, itms =>
             {
                 result.AddRange(itms);
                 return true;
@@ -610,7 +530,7 @@ namespace AzureStorage.Tables
             var rangeQuery = CompileTableQuery(partition);
             var result = new List<T>();
 
-            await ExecuteQueryAsync("GetDataAsync", rangeQuery, filter, itms =>
+            await ExecuteQueryAsync(rangeQuery, filter, itms =>
             {
                 result.AddRange(itms);
                 return true;
@@ -624,7 +544,7 @@ namespace AzureStorage.Tables
             var rangeQuery = CompileTableQuery(partition);
             var result = new List<T>();
 
-            await ExecuteQueryAsync("GetTopRecordAsync", rangeQuery, null, itms =>
+            await ExecuteQueryAsync(rangeQuery, null, itms =>
             {
                 result.AddRange(itms);
                 return false;
@@ -638,7 +558,7 @@ namespace AzureStorage.Tables
             var rangeQuery = CompileTableQuery(partition);
             var result = new List<T>();
 
-            await ExecuteQueryAsync("GetTopRecordsAsync", rangeQuery, null, itms =>
+            await ExecuteQueryAsync(rangeQuery, null, itms =>
             {
                 result.AddRange(itms);
 
@@ -654,7 +574,7 @@ namespace AzureStorage.Tables
         public async Task<IEnumerable<T>> WhereAsync(TableQuery<T> rangeQuery, Func<T, bool> filter = null)
         {
             var result = new List<T>();
-            await ExecuteQueryAsync("WhereAsync", rangeQuery, filter, itms =>
+            await ExecuteQueryAsync(rangeQuery, filter, itms =>
             {
                 result.AddRange(itms);
                 return true;
@@ -664,7 +584,7 @@ namespace AzureStorage.Tables
 
         public Task ExecuteAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> result, Func<bool> stopCondition = null)
         {
-            return ExecuteQueryAsync("ExecuteAsync", rangeQuery, null, itms =>
+            return ExecuteQueryAsync(rangeQuery, null, itms =>
             {
                 result(itms);
 
@@ -687,148 +607,70 @@ namespace AzureStorage.Tables
         {
             var table = GetTableReference();
 
-            try
-            {
-                await table.CreateIfNotExistsAsync();
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        nameof(CreateTableIfNotExists),
-                        "unknown case",
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "CreateTable error", "unknown case", ex);
-                throw;
-            }
+            await table.CreateIfNotExistsAsync();
 
             _tableCreated = true;
 
             return table;
         }
 
-        private async Task<CloudTable> GetTable()
+        private async Task<CloudTable> GetTableAsync()
         {
             return _tableCreated ? GetTableReference() : await CreateTableIfNotExists();
         }
 
-        private async Task ExecuteQueryAsync(string processName, TableQuery<T> rangeQuery, Func<T, bool> filter,
+        private async Task ExecuteQueryAsync(TableQuery<T> rangeQuery, Func<T, bool> filter,
             Func<IEnumerable<T>, Task> yieldData)
         {
-            try
+            TableContinuationToken tableContinuationToken = null;
+            var table = await GetTableAsync();
+            do
             {
-                TableContinuationToken tableContinuationToken = null;
-                var table = await GetTable();
-                do
-                {
-                    var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken, GetRequestOptions(), null);
-                    tableContinuationToken = queryResponse.ContinuationToken;
-                    await yieldData(AzureStorageUtils.ApplyFilter(queryResponse.Results, filter));
-                } while (tableContinuationToken != null);
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        processName,
-                        rangeQuery.FilterString ?? "[null]",
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
-                throw;
-            }
+                var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken, GetRequestOptions(), null);
+                tableContinuationToken = queryResponse.ContinuationToken;
+                await yieldData(AzureStorageUtils.ApplyFilter(queryResponse.Results, filter));
+            } while (tableContinuationToken != null);
         }
 
 
         /// <summary>
         ///     Выполнить запрос асинхроно
         /// </summary>
-        /// <param name="processName">Имя процесса (для лога)</param>
         /// <param name="rangeQuery">Параметры запроса</param>
         /// <param name="filter">Фильтрация запроса</param>
         /// <param name="yieldData">Данные которые мы выдаем наружу. Если возвращается false - данные можно больше не запрашивать</param>
         /// <returns></returns>
-        private async Task ExecuteQueryAsync(string processName, TableQuery<T> rangeQuery, Func<T, bool> filter,
-            Func<IEnumerable<T>, bool> yieldData)
+        private async Task ExecuteQueryAsync(TableQuery<T> rangeQuery, Func<T, bool> filter, Func<IEnumerable<T>, bool> yieldData)
         {
-            try
+            TableContinuationToken tableContinuationToken = null;
+            var table = await GetTableAsync();
+            do
             {
-                TableContinuationToken tableContinuationToken = null;
-                var table = await GetTable();
-                do
-                {
-                    var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken, GetRequestOptions(), null);
-                    tableContinuationToken = queryResponse.ContinuationToken;
-                    var shouldWeContinue = yieldData(AzureStorageUtils.ApplyFilter(queryResponse.Results, filter));
-                    if (!shouldWeContinue)
-                        break;
-                } while (tableContinuationToken != null);
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        processName,
-                        rangeQuery.FilterString ?? "[null]",
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
-                throw;
-            }
+                var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken, GetRequestOptions(), null);
+                tableContinuationToken = queryResponse.ContinuationToken;
+                var shouldWeContinue = yieldData(AzureStorageUtils.ApplyFilter(queryResponse.Results, filter));
+                if (!shouldWeContinue)
+                    break;
+            } while (tableContinuationToken != null);
         }
 
-        private async Task ExecuteQueryAsync2(string processName, TableQuery<T> rangeQuery, Func<T, Task<bool>> filter,
-            Func<T, bool> yieldData)
+        private async Task ExecuteQueryAsync2(TableQuery<T> rangeQuery, Func<T, Task<bool>> filter, Func<T, bool> yieldData)
         {
-            try
+            TableContinuationToken tableContinuationToken = null;
+            var table = await GetTableAsync();
+            do
             {
-                TableContinuationToken tableContinuationToken = null;
-                var table = await GetTable();
-                do
-                {
-                    var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken, GetRequestOptions(), null);
-                    tableContinuationToken = queryResponse.ContinuationToken;
+                var queryResponse = await table.ExecuteQuerySegmentedAsync(rangeQuery, tableContinuationToken, GetRequestOptions(), null);
+                tableContinuationToken = queryResponse.ContinuationToken;
 
-                    foreach (var itm in queryResponse.Results)
-                        if ((filter == null) || await filter(itm))
-                        {
-                            var shouldWeContinue = yieldData(itm);
-                            if (!shouldWeContinue)
-                                return;
-                        }
-                } while (tableContinuationToken != null);
-            }
-            catch (Exception ex)
-            {
-                if (ex is TaskCanceledException)
-                    await _log.WriteWarningAsync(
-                        "Table storage: " + _tableName,
-                        processName,
-                        rangeQuery.FilterString ?? "[null]",
-                        ex.GetBaseException().Message);
-                else
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, processName, rangeQuery.FilterString ?? "[null]", ex);
-                throw;
-            }
-        }
-
-
-        private async Task HandleException(T item, Exception ex, IEnumerable<int> notLogCodes)
-        {
-            var storageException = ex as StorageException;
-            if (storageException != null)
-            {
-                if (!storageException.HandleStorageException(notLogCodes))
-                    await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Insert item", AzureStorageUtils.PrintItem(item), ex);
-            }
-            else
-            {
-                await _log.WriteFatalErrorAsync("Table storage: " + _tableName, "Insert item", AzureStorageUtils.PrintItem(item), ex);
-            }
+                foreach (var itm in queryResponse.Results)
+                    if ((filter == null) || await filter(itm))
+                    {
+                        var shouldWeContinue = yieldData(itm);
+                        if (!shouldWeContinue)
+                            return;
+                    }
+            } while (tableContinuationToken != null);
         }
 
         private TableQuery<T> CompileTableQuery(string partition)
