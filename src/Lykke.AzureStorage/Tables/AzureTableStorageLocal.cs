@@ -250,10 +250,20 @@ namespace AzureStorage.Tables
             await chunks(data);
         }
 
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks)
+        {
+            throw new NotImplementedException();
+        }
+
         public async Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks)
         {
             var data = await GetHttpReqest(null, null);
             chunks(data);
+        }
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks)
+        {
+            throw new NotImplementedException();
         }
 
         public async Task GetDataByChunksAsync(string partitionKey, Action<IEnumerable<T>> chunks)

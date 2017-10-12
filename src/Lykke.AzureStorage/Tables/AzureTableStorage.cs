@@ -427,13 +427,21 @@ namespace AzureStorage.Tables
 
         public Task GetDataByChunksAsync(Func<IEnumerable<T>, Task> chunks)
         {
-            var rangeQuery = new TableQuery<T>();
+            return GetDataByChunksAsync(new TableQuery<T>(), chunks);
+        }
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks)
+        {
             return ExecuteQueryAsync(rangeQuery, null, async itms => { await chunks(itms); });
         }
 
         public Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks)
         {
-            var rangeQuery = new TableQuery<T>();
+            return GetDataByChunksAsync(new TableQuery<T>(), chunks);
+        }
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks)
+        {
             return ExecuteQueryAsync(rangeQuery, null, itms =>
             {
                 chunks(itms);

@@ -158,7 +158,17 @@ namespace AzureStorage
         /// <summary>
         /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation
         /// </summary>
+        Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks);
+
+        /// <summary>
+        /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation
+        /// </summary>
         Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks);
+
+        /// <summary>
+        /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation
+        /// </summary>
+        Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks);
 
         /// <summary>
         /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation

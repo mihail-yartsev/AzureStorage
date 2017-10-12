@@ -175,8 +175,14 @@ namespace AzureStorage.Tables.Decorators
         public Task GetDataByChunksAsync(Func<IEnumerable<T>, Task> chunks)
             => _cache.GetDataByChunksAsync(chunks);
 
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks) =>
+            _table.GetDataByChunksAsync(rangeQuery, chunks);
+
         public Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks)
             => _cache.GetDataByChunksAsync(chunks);
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks) =>
+            _table.GetDataByChunksAsync(rangeQuery, chunks);
 
         public Task GetDataByChunksAsync(string partitionKey, Action<IEnumerable<T>> chunks)
             => _cache.GetDataByChunksAsync(partitionKey, chunks);
