@@ -13,7 +13,7 @@ namespace Lykke.AzureStorage.Tables.Paging
             set => NextPage = _serializeToken(value);
         }
 
-        public List<TableContinuationToken> PreviousTokens
+        public IReadOnlyList<TableContinuationToken> PreviousTokens
         {
             get => PreviousPages.Select(_deserializeToken).ToList();
             set => PreviousPages = value.Select(_serializeToken).ToList();
