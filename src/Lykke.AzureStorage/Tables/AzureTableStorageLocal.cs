@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
@@ -132,6 +133,11 @@ namespace AzureStorage.Tables
         }
 
         public Task DoBatchAsync(TableBatchOperation batch)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<PagedItems<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, AzurePagingInfo azurePagingInfo)
         {
             throw new NotImplementedException();
         }

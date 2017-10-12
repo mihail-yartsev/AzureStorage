@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Lykke.AzureStorage;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -274,6 +275,11 @@ namespace AzureStorage.Tables.Decorators
         public async Task DoBatchAsync(TableBatchOperation batch)
         {
             await _retryService.RetryAsync(async () => await _impl.DoBatchAsync(batch), _onModificationsRetryCount);
+        }
+
+        public Task<PagedItems<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query, AzurePagingInfo azurePagingInfo)
+        {
+            return _impl.ExecuteQueryWithPaginationAsync(query, azurePagingInfo);
         }
     }   
 }

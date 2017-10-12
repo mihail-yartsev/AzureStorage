@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AzureStorage.Tables;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace AzureStorage
@@ -238,5 +239,13 @@ namespace AzureStorage
         /// Auto retries, if <see cref="AzureTableStorage{T}"/> implementation is used
         /// </summary>
         Task DoBatchAsync(TableBatchOperation batch);
+
+        /// <summary>
+        /// Executes provided query with pagination
+        /// </summary>
+        /// <param name="query">Query</param>
+        /// <param name="azurePagingInfo">Paging information</param>
+        /// <returns></returns>
+        Task<PagedItems<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, AzurePagingInfo azurePagingInfo);
     }
 }

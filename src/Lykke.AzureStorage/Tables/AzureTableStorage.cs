@@ -11,6 +11,7 @@ using Common.Extensions;
 using Common.Log;
 
 using Lykke.AzureStorage.Tables;
+using Lykke.AzureStorage.Tables.Paging;
 using Lykke.SettingsReader;
 
 using Microsoft.WindowsAzure.Storage;
@@ -134,6 +135,66 @@ namespace AzureStorage.Tables
         {
             var table = await GetTableAsync();
             await table.ExecuteLimitSafeBatchAsync(batch, GetRequestOptions(), null);
+        }
+
+        public async Task<PagedItems<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, AzurePagingInfo azurePagingInfo)
+        {
+            query = query ?? new TableQuery<T>();
+            azurePagingInfo = azurePagingInfo ?? new AzurePagingInfo();
+            var table = await GetTableAsync();
+            query.TakeCount = azurePagingInfo.ElementCount;
+
+            TableContinuationToken continuationToken = null;
+            if (azurePagingInfo.NavigateToPageIndex != 0)
+            {
+                if (azurePagingInfo.NavigateToPageIndex > azurePagingInfo.CurrentPage)
+                {
+                    continuationToken = azurePagingInfo.NextToken;
+                }
+                else
+                {
+                    continuationToken =
+                        azurePagingInfo.PreviousTokens[azurePagingInfo.NavigateToPageIndex - 1];
+                }
+            }
+            var queryResponse = await table.ExecuteQuerySegmentedAsync(query, continuationToken);
+
+            if (queryResponse.Results == null || !queryResponse.Results.Any())
+                return new PagedItems<T>
+                {
+                    PagingInfo = new AzurePagingInfo
+                    {
+                        ElementCount = azurePagingInfo.ElementCount
+                    }
+                };
+
+            var newPagingInfo = new AzurePagingInfo
+            {
+                ElementCount = azurePagingInfo.ElementCount,
+                NavigateToPageIndex = azurePagingInfo.NavigateToPageIndex + 1,
+            };
+
+
+            if (azurePagingInfo.NavigateToPageIndex > azurePagingInfo.CurrentPage)
+            {
+                newPagingInfo.CurrentPage = azurePagingInfo.CurrentPage + 1;
+                var previousTokens = azurePagingInfo.PreviousTokens.ToList();
+                previousTokens.Add(azurePagingInfo.NextToken);
+                newPagingInfo.PreviousTokens = previousTokens;
+            }
+            else
+            {
+                newPagingInfo.CurrentPage = azurePagingInfo.NavigateToPageIndex;
+                newPagingInfo.PreviousTokens = azurePagingInfo.PreviousTokens.Take(azurePagingInfo.NavigateToPageIndex).ToList();
+            }
+
+            newPagingInfo.NextToken = queryResponse.ContinuationToken;
+
+            return new PagedItems<T>
+            {
+                ResultList = queryResponse.Results,
+                PagingInfo = newPagingInfo
+            };
         }
 
         public virtual IEnumerator<T> GetEnumerator()
