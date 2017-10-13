@@ -147,8 +147,8 @@ namespace AzureStorage.Tables.Decorators
             await _cache.DoBatchAsync(batch);
         }
 
-        public Task<PagedItems<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query,
-            AzurePagingInfo azurePagingInfo) => _table.ExecuteQueryWithPaginationAsync(query, azurePagingInfo);
+        public Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query,
+            PagingInfo pagingInfo) => _table.ExecuteQueryWithPaginationAsync(query, pagingInfo);
 
         T INoSQLTableStorage<T>.this[string partition, string row] => _cache[partition, row];
 

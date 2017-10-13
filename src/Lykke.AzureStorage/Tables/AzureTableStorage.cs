@@ -21,6 +21,67 @@ namespace AzureStorage.Tables
 {
     public class AzureTableStorage<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
     {
+        private class AzurePagingInfo : PagingInfo
+        {
+            public TableContinuationToken NextToken
+            {
+                get => DeserializeToken(NextPage);
+                set => NextPage = SerializeToken(value);
+            }
+
+            public IReadOnlyList<TableContinuationToken> PreviousTokens
+            {
+                get => PreviousPages.Select(DeserializeToken).ToList();
+                set => PreviousPages = value.Select(SerializeToken).ToList();
+            }
+
+            public static AzurePagingInfo Create(PagingInfo pagingInfo)
+            {
+                return new AzurePagingInfo
+                {
+                    CurrentPage = pagingInfo.CurrentPage,
+                    ElementCount = pagingInfo.ElementCount,
+                    NavigateToPageIndex = pagingInfo.NavigateToPageIndex,
+                    NextPage = pagingInfo.NextPage,
+                    PreviousPages = pagingInfo.PreviousPages
+                };
+            }
+
+            private static string SerializeToken(TableContinuationToken token)
+            {
+                if (token == null)
+                    return null;
+
+                return $"{token.NextPartitionKey}|{token.NextRowKey}|{token.NextTableName}|{token.TargetLocation}";
+            }
+
+            private static TableContinuationToken DeserializeToken(string token)
+            {
+                if (token == null)
+                    return null;
+
+                var splited = token.Split('|');
+
+                StorageLocation? location = null;
+                if (splited[3] == "Primary")
+                {
+                    location = StorageLocation.Primary;
+                }
+                if (splited[3] == "Secondary")
+                {
+                    location = StorageLocation.Secondary;
+                }
+
+                return new TableContinuationToken()
+                {
+                    NextPartitionKey = splited[0],
+                    NextRowKey = splited[1],
+                    NextTableName = splited[2],
+                    TargetLocation = location
+                };
+            }
+        }
+
         public const int Conflict = 409;
 
         public string Name => _tableName;
@@ -137,10 +198,10 @@ namespace AzureStorage.Tables
             await table.ExecuteLimitSafeBatchAsync(batch, GetRequestOptions(), null);
         }
 
-        public async Task<PagedItems<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, AzurePagingInfo azurePagingInfo)
+        public async Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo)
         {
             query = query ?? new TableQuery<T>();
-            azurePagingInfo = azurePagingInfo ?? new AzurePagingInfo();
+            var azurePagingInfo = AzurePagingInfo.Create(pagingInfo ?? new PagingInfo());
             var table = await GetTableAsync();
             query.TakeCount = azurePagingInfo.ElementCount;
 
@@ -160,13 +221,10 @@ namespace AzureStorage.Tables
             var queryResponse = await table.ExecuteQuerySegmentedAsync(query, continuationToken);
 
             if (queryResponse.Results == null || !queryResponse.Results.Any())
-                return new PagedItems<T>
+                return new PagedResult<T>(pagingInfo: new PagingInfo
                 {
-                    PagingInfo = new AzurePagingInfo
-                    {
-                        ElementCount = azurePagingInfo.ElementCount
-                    }
-                };
+                    ElementCount = azurePagingInfo.ElementCount
+                });
 
             var newPagingInfo = new AzurePagingInfo
             {
@@ -187,14 +245,9 @@ namespace AzureStorage.Tables
                 newPagingInfo.CurrentPage = azurePagingInfo.NavigateToPageIndex;
                 newPagingInfo.PreviousTokens = azurePagingInfo.PreviousTokens.Take(azurePagingInfo.NavigateToPageIndex).ToList();
             }
-
             newPagingInfo.NextToken = queryResponse.ContinuationToken;
 
-            return new PagedItems<T>
-            {
-                ResultList = queryResponse.Results,
-                PagingInfo = newPagingInfo
-            };
+            return new PagedResult<T>(queryResponse.Results, newPagingInfo);
         }
 
         public virtual IEnumerator<T> GetEnumerator()

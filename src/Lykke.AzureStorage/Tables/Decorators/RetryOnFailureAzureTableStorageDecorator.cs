@@ -21,6 +21,7 @@ namespace AzureStorage.Tables.Decorators
     /// - FirstOrNullViaScanAsync
     /// - GetDataRowKeysOnlyAsync
     /// - ExecuteAsync
+    /// - ExecuteQueryWithPaginationAsync
     /// </remarks>
     internal class RetryOnFailureAzureTableStorageDecorator<TEntity> : INoSQLTableStorage<TEntity> 
         where TEntity : ITableEntity, new()
@@ -277,9 +278,9 @@ namespace AzureStorage.Tables.Decorators
             await _retryService.RetryAsync(async () => await _impl.DoBatchAsync(batch), _onModificationsRetryCount);
         }
 
-        public Task<PagedItems<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query, AzurePagingInfo azurePagingInfo)
+        public Task<PagedResult<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query, PagingInfo pagingInfo)
         {
-            return _impl.ExecuteQueryWithPaginationAsync(query, azurePagingInfo);
+            return _impl.ExecuteQueryWithPaginationAsync(query, pagingInfo);
         }
     }   
 }

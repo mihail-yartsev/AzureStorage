@@ -241,11 +241,11 @@ namespace AzureStorage
         Task DoBatchAsync(TableBatchOperation batch);
 
         /// <summary>
-        /// Executes provided query with pagination
+        /// Executes provided query with pagination. Not auto-retried.
         /// </summary>
         /// <param name="query">Query</param>
-        /// <param name="azurePagingInfo">Paging information</param>
+        /// <param name="pagingInfo">Paging information</param>
         /// <returns></returns>
-        Task<PagedItems<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, AzurePagingInfo azurePagingInfo);
+        Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo);
     }
 }
