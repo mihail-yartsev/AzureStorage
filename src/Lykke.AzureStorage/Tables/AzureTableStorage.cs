@@ -11,6 +11,7 @@ using Common.Extensions;
 using Common.Log;
 
 using Lykke.AzureStorage.Tables;
+using Lykke.AzureStorage.Tables.Paging;
 using Lykke.SettingsReader;
 
 using Microsoft.WindowsAzure.Storage;
@@ -20,6 +21,67 @@ namespace AzureStorage.Tables
 {
     public class AzureTableStorage<T> : INoSQLTableStorage<T> where T : class, ITableEntity, new()
     {
+        private class AzurePagingInfo : PagingInfo
+        {
+            public TableContinuationToken NextToken
+            {
+                get => DeserializeToken(NextPage);
+                set => NextPage = SerializeToken(value);
+            }
+
+            public IReadOnlyList<TableContinuationToken> PreviousTokens
+            {
+                get => PreviousPages.Select(DeserializeToken).ToList();
+                set => PreviousPages = value.Select(SerializeToken).ToList();
+            }
+
+            public static AzurePagingInfo Create(PagingInfo pagingInfo)
+            {
+                return new AzurePagingInfo
+                {
+                    CurrentPage = pagingInfo.CurrentPage,
+                    ElementCount = pagingInfo.ElementCount,
+                    NavigateToPageIndex = pagingInfo.NavigateToPageIndex,
+                    NextPage = pagingInfo.NextPage,
+                    PreviousPages = pagingInfo.PreviousPages
+                };
+            }
+
+            private static string SerializeToken(TableContinuationToken token)
+            {
+                if (token == null)
+                    return null;
+
+                return $"{token.NextPartitionKey}|{token.NextRowKey}|{token.NextTableName}|{token.TargetLocation}";
+            }
+
+            private static TableContinuationToken DeserializeToken(string token)
+            {
+                if (token == null)
+                    return null;
+
+                var splited = token.Split('|');
+
+                StorageLocation? location = null;
+                if (splited[3] == "Primary")
+                {
+                    location = StorageLocation.Primary;
+                }
+                if (splited[3] == "Secondary")
+                {
+                    location = StorageLocation.Secondary;
+                }
+
+                return new TableContinuationToken()
+                {
+                    NextPartitionKey = splited[0],
+                    NextRowKey = splited[1],
+                    NextTableName = splited[2],
+                    TargetLocation = location
+                };
+            }
+        }
+
         public const int Conflict = 409;
 
         public string Name => _tableName;
@@ -134,6 +196,58 @@ namespace AzureStorage.Tables
         {
             var table = await GetTableAsync();
             await table.ExecuteLimitSafeBatchAsync(batch, GetRequestOptions(), null);
+        }
+
+        public async Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo)
+        {
+            query = query ?? new TableQuery<T>();
+            var azurePagingInfo = AzurePagingInfo.Create(pagingInfo ?? new PagingInfo());
+            var table = await GetTableAsync();
+            query.TakeCount = azurePagingInfo.ElementCount;
+
+            TableContinuationToken continuationToken = null;
+            if (azurePagingInfo.NavigateToPageIndex != 0)
+            {
+                if (azurePagingInfo.NavigateToPageIndex > azurePagingInfo.CurrentPage)
+                {
+                    continuationToken = azurePagingInfo.NextToken;
+                }
+                else
+                {
+                    continuationToken =
+                        azurePagingInfo.PreviousTokens[azurePagingInfo.NavigateToPageIndex - 1];
+                }
+            }
+            var queryResponse = await table.ExecuteQuerySegmentedAsync(query, continuationToken);
+
+            if (queryResponse.Results == null || !queryResponse.Results.Any())
+                return new PagedResult<T>(pagingInfo: new PagingInfo
+                {
+                    ElementCount = azurePagingInfo.ElementCount
+                });
+
+            var newPagingInfo = new AzurePagingInfo
+            {
+                ElementCount = azurePagingInfo.ElementCount,
+                NavigateToPageIndex = azurePagingInfo.NavigateToPageIndex + 1,
+            };
+
+
+            if (azurePagingInfo.NavigateToPageIndex > azurePagingInfo.CurrentPage)
+            {
+                newPagingInfo.CurrentPage = azurePagingInfo.CurrentPage + 1;
+                var previousTokens = azurePagingInfo.PreviousTokens.ToList();
+                previousTokens.Add(azurePagingInfo.NextToken);
+                newPagingInfo.PreviousTokens = previousTokens;
+            }
+            else
+            {
+                newPagingInfo.CurrentPage = azurePagingInfo.NavigateToPageIndex;
+                newPagingInfo.PreviousTokens = azurePagingInfo.PreviousTokens.Take(azurePagingInfo.NavigateToPageIndex).ToList();
+            }
+            newPagingInfo.NextToken = queryResponse.ContinuationToken;
+
+            return new PagedResult<T>(queryResponse.Results, newPagingInfo);
         }
 
         public virtual IEnumerator<T> GetEnumerator()
@@ -427,13 +541,21 @@ namespace AzureStorage.Tables
 
         public Task GetDataByChunksAsync(Func<IEnumerable<T>, Task> chunks)
         {
-            var rangeQuery = new TableQuery<T>();
+            return GetDataByChunksAsync(new TableQuery<T>(), chunks);
+        }
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks)
+        {
             return ExecuteQueryAsync(rangeQuery, null, async itms => { await chunks(itms); });
         }
 
         public Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks)
         {
-            var rangeQuery = new TableQuery<T>();
+            return GetDataByChunksAsync(new TableQuery<T>(), chunks);
+        }
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks)
+        {
             return ExecuteQueryAsync(rangeQuery, null, itms =>
             {
                 chunks(itms);

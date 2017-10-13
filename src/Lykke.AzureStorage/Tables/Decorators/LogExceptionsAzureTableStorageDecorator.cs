@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Threading.Tasks;
 using Common.Extensions;
 using Common.Log;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
@@ -138,8 +139,14 @@ namespace AzureStorage.Tables.Decorators
         public Task GetDataByChunksAsync(Func<IEnumerable<TEntity>, Task> chunks) 
             => WrapAsync(() => _impl.GetDataByChunksAsync(chunks), nameof(GetDataByChunksAsync));
 
+        public Task GetDataByChunksAsync(TableQuery<TEntity> rangeQuery, Func<IEnumerable<TEntity>, Task> chunks) 
+            => WrapAsync(() =>_impl.GetDataByChunksAsync(rangeQuery, chunks), nameof(GetDataByChunksAsync));
+
         public Task GetDataByChunksAsync(Action<IEnumerable<TEntity>> chunks) 
             => WrapAsync(() => _impl.GetDataByChunksAsync(chunks), nameof(GetDataByChunksAsync));
+
+        public Task GetDataByChunksAsync(TableQuery<TEntity> rangeQuery, Action<IEnumerable<TEntity>> chunks)
+            => WrapAsync(() => _impl.GetDataByChunksAsync(rangeQuery, chunks), nameof(GetDataByChunksAsync));
 
         public Task GetDataByChunksAsync(string partitionKey, Action<IEnumerable<TEntity>> chunks) 
             => WrapAsync(() => _impl.GetDataByChunksAsync(partitionKey, chunks), nameof(GetDataByChunksAsync), new {partitionKey});
@@ -176,6 +183,11 @@ namespace AzureStorage.Tables.Decorators
 
         public Task DoBatchAsync(TableBatchOperation batch) 
             => WrapAsync(() => _impl.DoBatchAsync(batch), nameof(DoBatchAsync));
+
+        public Task<PagedResult<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query,
+            PagingInfo pagingInfo)
+            => WrapAsync(() => _impl.ExecuteQueryWithPaginationAsync(query, pagingInfo),
+                nameof(ExecuteQueryWithPaginationAsync));
 
         #endregion
 

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Common.Log;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -146,6 +147,9 @@ namespace AzureStorage.Tables.Decorators
             await _cache.DoBatchAsync(batch);
         }
 
+        public Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query,
+            PagingInfo pagingInfo) => _table.ExecuteQueryWithPaginationAsync(query, pagingInfo);
+
         T INoSQLTableStorage<T>.this[string partition, string row] => _cache[partition, row];
 
         IEnumerable<T> INoSQLTableStorage<T>.this[string partition] => _cache[partition];
@@ -175,8 +179,14 @@ namespace AzureStorage.Tables.Decorators
         public Task GetDataByChunksAsync(Func<IEnumerable<T>, Task> chunks)
             => _cache.GetDataByChunksAsync(chunks);
 
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks) =>
+            _table.GetDataByChunksAsync(rangeQuery, chunks);
+
         public Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks)
             => _cache.GetDataByChunksAsync(chunks);
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks) =>
+            _table.GetDataByChunksAsync(rangeQuery, chunks);
 
         public Task GetDataByChunksAsync(string partitionKey, Action<IEnumerable<T>> chunks)
             => _cache.GetDataByChunksAsync(partitionKey, chunks);

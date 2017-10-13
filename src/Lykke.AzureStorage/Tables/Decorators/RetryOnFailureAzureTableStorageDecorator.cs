@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Lykke.AzureStorage;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -20,6 +21,7 @@ namespace AzureStorage.Tables.Decorators
     /// - FirstOrNullViaScanAsync
     /// - GetDataRowKeysOnlyAsync
     /// - ExecuteAsync
+    /// - ExecuteQueryWithPaginationAsync
     /// </remarks>
     internal class RetryOnFailureAzureTableStorageDecorator<TEntity> : INoSQLTableStorage<TEntity> 
         where TEntity : ITableEntity, new()
@@ -201,9 +203,19 @@ namespace AzureStorage.Tables.Decorators
             return _impl.GetDataByChunksAsync(chunks);
         }
 
+        public Task GetDataByChunksAsync(TableQuery<TEntity> rangeQuery, Func<IEnumerable<TEntity>, Task> chunks)
+        {
+            return _impl.GetDataByChunksAsync(rangeQuery, chunks);
+        }
+
         public Task GetDataByChunksAsync(Action<IEnumerable<TEntity>> chunks)
         {
             return _impl.GetDataByChunksAsync(chunks);
+        }
+
+        public Task GetDataByChunksAsync(TableQuery<TEntity> rangeQuery, Action<IEnumerable<TEntity>> chunks)
+        {
+            return _impl.GetDataByChunksAsync(rangeQuery, chunks);
         }
 
         public Task GetDataByChunksAsync(string partitionKey, Action<IEnumerable<TEntity>> chunks)
@@ -264,6 +276,11 @@ namespace AzureStorage.Tables.Decorators
         public async Task DoBatchAsync(TableBatchOperation batch)
         {
             await _retryService.RetryAsync(async () => await _impl.DoBatchAsync(batch), _onModificationsRetryCount);
+        }
+
+        public Task<PagedResult<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query, PagingInfo pagingInfo)
+        {
+            return _impl.ExecuteQueryWithPaginationAsync(query, pagingInfo);
         }
     }   
 }

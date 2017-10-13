@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Common;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -369,6 +370,11 @@ namespace AzureStorage.Tables
             throw new NotImplementedException();
         }
 
+        public Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo)
+        {
+            throw new NotImplementedException();
+        }
+
         public T this[string partitionKey, string rowKey]
         {
             get
@@ -445,11 +451,21 @@ namespace AzureStorage.Tables
             return chunks(data);
         }
 
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks)
         {
             var data = GetData();
             chunks(data);
             return Task.FromResult(0);
+        }
+
+        public Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks)
+        {
+            throw new NotImplementedException();
         }
 
         public Task GetDataByChunksAsync(string partitionKey, Action<IEnumerable<T>> chunks)

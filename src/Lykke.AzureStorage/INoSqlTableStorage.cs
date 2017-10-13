@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AzureStorage.Tables;
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace AzureStorage
@@ -158,7 +159,17 @@ namespace AzureStorage
         /// <summary>
         /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation
         /// </summary>
+        Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Func<IEnumerable<T>, Task> chunks);
+
+        /// <summary>
+        /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation
+        /// </summary>
         Task GetDataByChunksAsync(Action<IEnumerable<T>> chunks);
+
+        /// <summary>
+        /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation
+        /// </summary>
+        Task GetDataByChunksAsync(TableQuery<T> rangeQuery, Action<IEnumerable<T>> chunks);
 
         /// <summary>
         /// Not auto-retried, if <see cref="AzureTableStorage{T}"/> implementation is used, since this is not atomic operation
@@ -228,5 +239,13 @@ namespace AzureStorage
         /// Auto retries, if <see cref="AzureTableStorage{T}"/> implementation is used
         /// </summary>
         Task DoBatchAsync(TableBatchOperation batch);
+
+        /// <summary>
+        /// Executes provided query with pagination. Not auto-retried.
+        /// </summary>
+        /// <param name="query">Query</param>
+        /// <param name="pagingInfo">Paging information</param>
+        /// <returns></returns>
+        Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo);
     }
 }

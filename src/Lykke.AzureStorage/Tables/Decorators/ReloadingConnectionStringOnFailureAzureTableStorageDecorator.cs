@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-
+using Lykke.AzureStorage.Tables.Paging;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace AzureStorage.Tables.Decorators
@@ -100,8 +100,14 @@ namespace AzureStorage.Tables.Decorators
         public Task GetDataByChunksAsync(Func<IEnumerable<TEntity>, Task> chunks)
             => WrapAsync(x => x.GetDataByChunksAsync(chunks));
 
+        public Task GetDataByChunksAsync(TableQuery<TEntity> rangeQuery, Func<IEnumerable<TEntity>, Task> chunks)
+            => WrapAsync(x => x.GetDataByChunksAsync(rangeQuery, chunks));
+
         public Task GetDataByChunksAsync(Action<IEnumerable<TEntity>> chunks)
             => WrapAsync(x => x.GetDataByChunksAsync(chunks));
+
+        public Task GetDataByChunksAsync(TableQuery<TEntity> rangeQuery, Action<IEnumerable<TEntity>> chunks)
+            => WrapAsync(x => x.GetDataByChunksAsync(rangeQuery, chunks));
 
         public Task GetDataByChunksAsync(string partitionKey, Action<IEnumerable<TEntity>> chunks)
             => WrapAsync(x => x.GetDataByChunksAsync(partitionKey, chunks));
@@ -138,5 +144,9 @@ namespace AzureStorage.Tables.Decorators
 
         public Task DoBatchAsync(TableBatchOperation batch)
             => WrapAsync(x => x.DoBatchAsync(batch));
+
+        public Task<PagedResult<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query,
+            PagingInfo pagingInfo)
+            => WrapAsync(x => x.ExecuteQueryWithPaginationAsync(query, pagingInfo));
     }
 }
