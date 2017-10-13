@@ -3,12 +3,7 @@ using System.Collections.Generic;
 
 namespace Lykke.AzureStorage.Tables.Paging
 {
-    public interface IPagedResult<out T> : IEnumerable<T>
-    {
-        PagingInfo PagingInfo { get; }
-    }
-
-    public class PagedResult<T>: IPagedResult<T>
+    internal class PagedResult<T>: IPagedResult<T>
     {
         private readonly IEnumerable<T> _result;
 
@@ -16,7 +11,7 @@ namespace Lykke.AzureStorage.Tables.Paging
 
         public PagedResult(IEnumerable<T> items = null, PagingInfo pagingInfo = null)
         {
-            _result = items;
+            _result = items ?? new List<T>();
             PagingInfo = pagingInfo;
         }
 
