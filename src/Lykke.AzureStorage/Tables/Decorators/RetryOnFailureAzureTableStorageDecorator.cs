@@ -278,7 +278,7 @@ namespace AzureStorage.Tables.Decorators
             await _retryService.RetryAsync(async () => await _impl.DoBatchAsync(batch), _onModificationsRetryCount);
         }
 
-        public Task<PagedResult<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query, PagingInfo pagingInfo)
+        public Task<IPagedResult<TEntity>> ExecuteQueryWithPaginationAsync(TableQuery<TEntity> query, PagingInfo pagingInfo)
         {
             return _impl.ExecuteQueryWithPaginationAsync(query, pagingInfo);
         }

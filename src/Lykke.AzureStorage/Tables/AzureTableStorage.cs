@@ -198,7 +198,7 @@ namespace AzureStorage.Tables
             await table.ExecuteLimitSafeBatchAsync(batch, GetRequestOptions(), null);
         }
 
-        public async Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo)
+        public async Task<IPagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo)
         {
             query = query ?? new TableQuery<T>();
             var azurePagingInfo = AzurePagingInfo.Create(pagingInfo ?? new PagingInfo());

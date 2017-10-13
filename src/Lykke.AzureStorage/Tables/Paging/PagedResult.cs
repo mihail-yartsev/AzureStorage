@@ -3,20 +3,21 @@ using System.Collections.Generic;
 
 namespace Lykke.AzureStorage.Tables.Paging
 {
-    public class PagedResult<T>: IEnumerable<T>
+    internal class PagedResult<T>: IPagedResult<T>
     {
-        public IEnumerable<T> Result { get; }
+        private readonly IEnumerable<T> _result;
+
         public PagingInfo PagingInfo { get; }
 
         public PagedResult(IEnumerable<T> items = null, PagingInfo pagingInfo = null)
         {
-            Result = items;
+            _result = items ?? new List<T>();
             PagingInfo = pagingInfo;
         }
 
         public IEnumerator<T> GetEnumerator()
         {
-            return Result.GetEnumerator();
+            return _result.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
