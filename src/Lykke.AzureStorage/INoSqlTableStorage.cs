@@ -246,6 +246,6 @@ namespace AzureStorage
         /// <param name="query">Query</param>
         /// <param name="pagingInfo">Paging information</param>
         /// <returns></returns>
-        Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo);
+        Task<IPagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo);
     }
 }

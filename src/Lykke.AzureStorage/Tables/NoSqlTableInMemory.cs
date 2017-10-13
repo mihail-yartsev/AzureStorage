@@ -370,7 +370,7 @@ namespace AzureStorage.Tables
             throw new NotImplementedException();
         }
 
-        public Task<PagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo)
+        public Task<IPagedResult<T>> ExecuteQueryWithPaginationAsync(TableQuery<T> query, PagingInfo pagingInfo)
         {
             throw new NotImplementedException();
         }
