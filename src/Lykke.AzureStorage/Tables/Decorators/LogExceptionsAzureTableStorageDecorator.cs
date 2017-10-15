@@ -109,6 +109,11 @@ namespace AzureStorage.Tables.Decorators
         public Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey) 
             => WrapAsync(() => _impl.DeleteIfExistAsync(partitionKey, rowKey), nameof(DeleteIfExistAsync), new {partitionKey, rowKey});
 
+        public Task<bool> DeleteAsync()
+        {
+            throw new NotImplementedException();
+        }
+
         public Task DeleteAsync(IEnumerable<TEntity> items) 
             => WrapAsync(() => _impl.DeleteAsync(items), nameof(DeleteAsync), items);
 

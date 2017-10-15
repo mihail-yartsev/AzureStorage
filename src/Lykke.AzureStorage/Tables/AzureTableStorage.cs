@@ -428,6 +428,29 @@ namespace AzureStorage.Tables
             return true;
         }
 
+        public async Task<bool> DeleteAsync()
+        {
+            try
+            {
+                if (_tableCreated)
+                {
+                    var table = GetTableReference();
+                    await table.DeleteIfExistsAsync();
+
+                    _tableCreated = false;
+                }
+            }
+            catch (StorageException ex)
+            {
+                if (ex.RequestInformation.HttpStatusCode == 404)
+                    return false;
+
+                throw;
+            }
+
+            return true;
+        }
+
         public async Task DeleteAsync(IEnumerable<T> items)
         {
             items = items.ToArray();

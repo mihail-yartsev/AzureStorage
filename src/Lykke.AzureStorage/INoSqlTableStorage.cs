@@ -96,6 +96,12 @@ namespace AzureStorage
         Task<bool> DeleteIfExistAsync(string partitionKey, string rowKey);
 
         /// <summary>
+        /// Deletes the table.
+        /// Auto retries, if <see cref="AzureTableStorage{T}"/> implementation is used
+        /// </summary>
+        Task<bool> DeleteAsync();
+
+        /// <summary>
         /// Auto retries, if <see cref="AzureTableStorage{T}"/> implementation is used
         /// </summary>
         Task DeleteAsync(IEnumerable<T> items);
