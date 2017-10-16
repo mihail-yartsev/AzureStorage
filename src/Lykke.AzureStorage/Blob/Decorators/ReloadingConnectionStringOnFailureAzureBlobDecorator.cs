@@ -8,7 +8,7 @@ namespace AzureStorage.Blob.Decorators
     /// <summary>
     /// Decorator, which adds reloading ConnectionString on authenticate failure to operations of <see cref="IBlobStorage"/> implementation
     /// </summary>
-    public class ReloadingConnectionStringOnFailureAzureBlobDecorator : ReloadingOnFailureDecoratorBase<IBlobStorage>, IBlobStorage
+    internal class ReloadingConnectionStringOnFailureAzureBlobDecorator : ReloadingOnFailureDecoratorBase<IBlobStorage>, IBlobStorage
     {
         protected override Func<Task<IBlobStorage>> MakeStorage { get; }
 
@@ -39,7 +39,7 @@ namespace AzureStorage.Blob.Decorators
             => WrapAsync(x => x.GetAsTextAsync(blobContainer, key));
 
         public string GetBlobUrl(string container, string key)
-            => Wrap(x => GetBlobUrl(container, key));
+            => Wrap(x => x.GetBlobUrl(container, key));
 
         public Task<IEnumerable<string>> FindNamesByPrefixAsync(string container, string prefix)
             => WrapAsync(x => x.FindNamesByPrefixAsync(container, prefix));

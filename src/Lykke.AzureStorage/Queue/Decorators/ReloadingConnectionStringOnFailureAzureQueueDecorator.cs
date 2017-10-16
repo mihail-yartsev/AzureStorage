@@ -5,7 +5,7 @@ using Microsoft.WindowsAzure.Storage.Queue;
 
 namespace AzureStorage.Queue.Decorators
 {
-    public class ReloadingConnectionStringOnFailureAzureQueueDecorator : ReloadingOnFailureDecoratorBase<IQueueExt>, IQueueExt
+    internal class ReloadingConnectionStringOnFailureAzureQueueDecorator : ReloadingOnFailureDecoratorBase<IQueueExt>, IQueueExt
     {
         protected override Func<Task<IQueueExt>> MakeStorage { get; }
 
