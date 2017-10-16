@@ -430,11 +430,13 @@ namespace AzureStorage.Tables
 
         public async Task<bool> DeleteAsync()
         {
+            bool deleted;
+
             try
             {
                 var table = await GetTableAsync();
 
-                var deleted = await table.DeleteIfExistsAsync();
+                deleted = await table.DeleteIfExistsAsync();
 
                 if (deleted)
                 {
@@ -449,7 +451,7 @@ namespace AzureStorage.Tables
                 throw;
             }
 
-            return true;
+            return deleted;
         }
 
         public async Task DeleteAsync(IEnumerable<T> items)
