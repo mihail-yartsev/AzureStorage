@@ -8,7 +8,7 @@ namespace AzureStorage.Blob.Decorators
     /// <summary>
     /// Decorator, which adds reloading ConnectionString on authenticate failure to operations of <see cref="IBlobStorage"/> implementation
     /// </summary>
-    public class ReloadingConnectionStringOnFailureAzureBlobDecorator : ReloadingOnFailureDecoratorBase<IBlobStorage>, IBlobStorage
+    internal class ReloadingConnectionStringOnFailureAzureBlobDecorator : ReloadingOnFailureDecoratorBase<IBlobStorage>, IBlobStorage
     {
         protected override Func<Task<IBlobStorage>> MakeStorage { get; }
 
