@@ -39,7 +39,7 @@ namespace AzureStorage.Blob.Decorators
             => WrapAsync(x => x.GetAsTextAsync(blobContainer, key));
 
         public string GetBlobUrl(string container, string key)
-            => Wrap(x => GetBlobUrl(container, key));
+            => Wrap(x => x.GetBlobUrl(container, key));
 
         public Task<IEnumerable<string>> FindNamesByPrefixAsync(string container, string prefix)
             => WrapAsync(x => x.FindNamesByPrefixAsync(container, prefix));
