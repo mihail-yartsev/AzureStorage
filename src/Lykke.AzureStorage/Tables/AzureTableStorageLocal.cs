@@ -110,6 +110,11 @@ namespace AzureStorage.Tables
             return true;
         }
 
+        public Task<bool> DeleteAsync()
+        {
+            throw new NotImplementedException();
+        }
+
         public async Task DeleteAsync(IEnumerable<T> items)
         {
             foreach (var entity in items)

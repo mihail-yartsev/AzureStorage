@@ -324,6 +324,21 @@ namespace AzureStorage.Tables
             return true;
         }
 
+        public async Task<bool> DeleteAsync()
+        {
+            await _lockSlim.WaitAsync();
+            try
+            {
+                Partitions.Clear();
+
+                return true;
+            }
+            finally
+            {
+                _lockSlim.Release();
+            }
+        }
+
         public async Task DeleteAsync(IEnumerable<T> items)
         {
             foreach (var entity in items)
