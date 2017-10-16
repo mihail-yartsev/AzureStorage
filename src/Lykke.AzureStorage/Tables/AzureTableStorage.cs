@@ -432,11 +432,12 @@ namespace AzureStorage.Tables
         {
             try
             {
-                if (_tableCreated)
-                {
-                    var table = GetTableReference();
-                    await table.DeleteIfExistsAsync();
+                var table = await GetTableAsync();
 
+                var deleted = await table.DeleteIfExistsAsync();
+
+                if (deleted)
+                {
                     _tableCreated = false;
                 }
             }

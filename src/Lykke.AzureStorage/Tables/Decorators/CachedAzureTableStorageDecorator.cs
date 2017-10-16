@@ -117,9 +117,9 @@ namespace AzureStorage.Tables.Decorators
             return true;
         }
 
-        public Task<bool> DeleteAsync()
+        public async Task<bool> DeleteAsync()
         {
-            throw new NotImplementedException();
+            return await _table.DeleteAsync() && await _cache.DeleteAsync();
         }
 
         public async Task DeleteAsync(IEnumerable<T> items)
