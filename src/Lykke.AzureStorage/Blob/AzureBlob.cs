@@ -16,7 +16,7 @@ namespace AzureStorage.Blob
         private readonly CloudStorageAccount _storageAccount;
         private readonly TimeSpan _maxExecutionTime;
 
-        internal AzureBlobStorage(string connectionString, TimeSpan? maxExecutionTimeout = null)
+        private AzureBlobStorage(string connectionString, TimeSpan? maxExecutionTimeout = null)
         {
             _storageAccount = CloudStorageAccount.Parse(connectionString);
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
