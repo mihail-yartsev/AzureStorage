@@ -3,13 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-
 using AzureStorage.Blob.Decorators;
-
 using Common.Extensions;
-
 using Lykke.SettingsReader;
-
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 
@@ -20,20 +16,34 @@ namespace AzureStorage.Blob
         private readonly CloudStorageAccount _storageAccount;
         private readonly TimeSpan _maxExecutionTime;
 
-        [Obsolete("Have to use the Azure Table Storage.Create method to reloading ConnectionString on access failure.", false)]
-        public AzureBlobStorage(string connectionString, TimeSpan? maxExecutionTimeout = null)
+        private AzureBlobStorage(string connectionString, TimeSpan? maxExecutionTimeout = null)
         {
             _storageAccount = CloudStorageAccount.Parse(connectionString);
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(30));
         }
 
-        public static IBlobStorage Create(IReloadingManager<string> connectionStringManager, TimeSpan? maxExecutionTimeout = null)
+        /// <summary>
+        /// Creates <see cref="AzureBlobStorage"/> with automatically connection string reloading and auto-retries
+        /// </summary>
+        /// <param name="connectionStringManager">Connection string reloading manager</param>
+        /// <param name="maxExecutionTimeout">Max execution timeout</param>
+        /// <param name="onModificationRetryCount">Retries count for write operations</param>
+        /// <param name="onGettingRetryCount">Retries count for read operations</param>
+        /// <param name="retryDelay">Delay before next retry. Default value is 200 milliseconds</param>
+        public static IBlobStorage Create(
+            IReloadingManager<string> connectionStringManager, 
+            TimeSpan? maxExecutionTimeout = null,
+            int onModificationRetryCount = 10,
+            int onGettingRetryCount = 10,
+            TimeSpan? retryDelay = null)
         {
-            return new ReloadingConnectionStringOnFailureAzureBlobDecorator(
-#pragma warning disable 618
-                async () => new AzureBlobStorage(await connectionStringManager.Reload(), maxExecutionTimeout)
-#pragma warning restore 618
-            );
+            return new RetryOnFailureAzureBlobDecorator(
+                new ReloadingConnectionStringOnFailureAzureBlobDecorator(
+                    async () => new AzureBlobStorage(await connectionStringManager.Reload(), maxExecutionTimeout)
+                ),
+                onModificationRetryCount,
+                onGettingRetryCount,
+                retryDelay);
         }
 
         private CloudBlobContainer GetContainerReference(string container)
