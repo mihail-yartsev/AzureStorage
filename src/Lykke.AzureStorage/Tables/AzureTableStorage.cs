@@ -86,16 +86,24 @@ namespace AzureStorage.Tables
 
         public string Name => _tableName;
 
+        protected ILog Log { get; }
+
         private readonly TimeSpan _maxExecutionTime;
         private readonly string _tableName;
 
         private readonly CloudStorageAccount _cloudStorageAccount;
         private bool _tableCreated;
 
-        private AzureTableStorage(string connectionString, string tableName, TimeSpan? maxExecutionTimeout = null) 
+        private AzureTableStorage(
+            string connectionString,
+            string tableName,
+            ILog log,
+            TimeSpan? maxExecutionTimeout = null) 
         {
             _tableName = tableName;
             _cloudStorageAccount = CloudStorageAccount.Parse(connectionString);
+
+            Log = log;
 
             _maxExecutionTime = maxExecutionTimeout.GetValueOrDefault(TimeSpan.FromSeconds(5));
         }
@@ -129,7 +137,7 @@ namespace AzureStorage.Tables
             TimeSpan? retryDelay = null)
         {
             async Task<INoSQLTableStorage<T>> MakeStorage() 
-                => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, maxExecutionTimeout);
+                => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, log, maxExecutionTimeout);
 
             return
                 new LogExceptionsAzureTableStorageDecorator<T>(
@@ -170,7 +178,7 @@ namespace AzureStorage.Tables
             TimeSpan? retryDelay = null)
         {
             async Task<INoSQLTableStorage<T>> MakeStorage() 
-                => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, maxExecutionTimeout);
+                => new AzureTableStorage<T>(await connectionStringManager.Reload(), tableName, log, maxExecutionTimeout);
 
             return
                 new LogExceptionsAzureTableStorageDecorator<T>(
@@ -762,7 +770,7 @@ namespace AzureStorage.Tables
             return table;
         }
 
-        private async Task<CloudTable> GetTableAsync()
+        protected async Task<CloudTable> GetTableAsync()
         {
             return _tableCreated ? GetTableReference() : await CreateTableIfNotExists();
         }
