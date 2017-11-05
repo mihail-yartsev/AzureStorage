@@ -4,7 +4,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>Lykke.AzureStorage</AssemblyName>
     <PackageId>Lykke.AzureStorage</PackageId>
-    <Version>1.0.1</Version>
+    <Version>2.1.5-alpha</Version>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
